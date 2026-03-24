@@ -1,0 +1,169 @@
+package main
+
+import (
+	"bytes"
+	_ "embed"
+	"html/template"
+	"sort"
+	"strings"
+)
+
+//go:embed templates/settings.html
+var keybindsTemplateHTML string
+
+type keybindRowView struct {
+	ComboDisplay string
+	ComboKey     string
+	ActionLabel  string
+	BadgeClass   string
+	SourceLabel  string
+	IsOverride   bool
+	IsHold       bool
+}
+
+type keybindGroupView struct {
+	SourceName string
+	Rows       []keybindRowView
+}
+
+var keybindsTemplate = template.Must(template.New("keybinds").Funcs(template.FuncMap{
+	"eq": func(a, b string) bool { return a == b },
+}).Parse(keybindsTemplateHTML))
+
+
+func renderSettings(ps *PluginState, search string) string {
+	// Group entries by (key, modifiers) ignoring event type
+	type comboGroupKey struct {
+		Key  string
+		Mods Modifiers
+	}
+	type comboGroupEntry struct {
+		Combo KeyCombo
+		Entry KeybindEntry
+	}
+	comboGroups := make(map[comboGroupKey][]comboGroupEntry)
+	for _, e := range ps.Registry.Entries {
+		gk := comboGroupKey{Key: e.Combo.Key, Mods: e.Combo.Modifiers}
+		comboGroups[gk] = append(comboGroups[gk], comboGroupEntry{Combo: e.Combo, Entry: e})
+	}
+
+	rowsBySource := make(map[string][]keybindRowView)
+	hasOverrides := false
+
+	for _, entries := range comboGroups {
+		hasDown := false
+		hasUp := false
+		for _, e := range entries {
+			if e.Combo.Event == KeyEventDown {
+				hasDown = true
+			}
+			if e.Combo.Event == KeyEventUp {
+				hasUp = true
+			}
+		}
+		isHold := hasDown && hasUp
+
+		if isHold {
+			// Find the down entry
+			var downEntry *comboGroupEntry
+			for i := range entries {
+				if entries[i].Combo.Event == KeyEventDown {
+					downEntry = &entries[i]
+					break
+				}
+			}
+			if downEntry == nil {
+				continue
+			}
+
+			comboDisplay := comboBaseString(downEntry.Combo) + " (hold)"
+			ck := comboBaseString(downEntry.Combo)
+			actionLabel := humanizeAction(downEntry.Entry.Action)
+			groupName := sourceGroupName(downEntry.Entry.Source)
+			isOverride := downEntry.Entry.Source.IsUser
+
+			if search != "" &&
+				!strings.Contains(strings.ToLower(comboDisplay), search) &&
+				!strings.Contains(strings.ToLower(actionLabel), search) {
+				continue
+			}
+
+			if isOverride {
+				hasOverrides = true
+			}
+
+			rowsBySource[groupName] = append(rowsBySource[groupName], keybindRowView{
+				ComboDisplay: comboDisplay,
+				ComboKey:     ck,
+				ActionLabel:  actionLabel,
+				BadgeClass:   ifStr(isOverride, "badge-user", "badge-core"),
+				SourceLabel:  sourceBadgeLabel(downEntry.Entry.Source),
+				IsOverride:   isOverride,
+				IsHold:       true,
+			})
+		} else {
+			for _, e := range entries {
+				comboDisplay := comboBaseString(e.Combo)
+				ck := comboDisplay
+				actionLabel := humanizeAction(e.Entry.Action)
+				groupName := sourceGroupName(e.Entry.Source)
+				isOverride := e.Entry.Source.IsUser
+
+				if search != "" &&
+					!strings.Contains(strings.ToLower(comboDisplay), search) &&
+					!strings.Contains(strings.ToLower(actionLabel), search) {
+					continue
+				}
+
+				if isOverride {
+					hasOverrides = true
+				}
+
+				rowsBySource[groupName] = append(rowsBySource[groupName], keybindRowView{
+					ComboDisplay: comboDisplay,
+					ComboKey:     ck,
+					ActionLabel:  actionLabel,
+					BadgeClass:   ifStr(isOverride, "badge-user", "badge-core"),
+					SourceLabel:  sourceBadgeLabel(e.Entry.Source),
+					IsOverride:   isOverride,
+					IsHold:       false,
+				})
+			}
+		}
+	}
+
+	// Build sorted groups
+	groups := make([]keybindGroupView, 0, len(rowsBySource))
+	for sourceName, rows := range rowsBySource {
+		sort.Slice(rows, func(i, j int) bool {
+			return rows[i].ComboDisplay < rows[j].ComboDisplay
+		})
+		groups = append(groups, keybindGroupView{SourceName: sourceName, Rows: rows})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].SourceName < groups[j].SourceName
+	})
+
+	data := struct {
+		Groups         []keybindGroupView
+		HasOverrides   bool
+		RemappingCombo string
+	}{
+		Groups:         groups,
+		HasOverrides:   hasOverrides,
+		RemappingCombo: ps.RemappingCombo,
+	}
+
+	var buf bytes.Buffer
+	if err := keybindsTemplate.Execute(&buf, data); err != nil {
+		return ""
+	}
+	return buf.String()
+}
+
+func ifStr(cond bool, a, b string) string {
+	if cond {
+		return a
+	}
+	return b
+}

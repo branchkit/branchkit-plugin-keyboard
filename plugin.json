@@ -1,0 +1,20 @@
+{
+  "id": "keybinds",
+  "name": "Keyboard",
+  "capabilities": ["input"],
+  "version": "1.0.0",
+  "description": "Global hotkey capture and keybind registry.",
+  "author": "BranchKit",
+  "provides": {
+    "stores": ["keybinds"],
+    "store_schemas": {
+      "keybinds": { "merge": "keyed", "content_type": "keybind_registry" }
+    }
+  },
+  "run": "./keybind-plugin",
+  "hooks": {
+    "settings_tabs": [{"label": "Keybinds", "key": "keybinds"}],
+    "render_settings": true,
+    "on_store_updated": true
+  }
+}
