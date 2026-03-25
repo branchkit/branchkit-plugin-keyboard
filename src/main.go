@@ -707,6 +707,7 @@ func main() {
 	mux.HandleFunc("POST /hooks/stop-capture", hookStopCapture)
 	mux.HandleFunc("POST /hooks/set-key-name", hookSetKeyName)
 	mux.HandleFunc("POST /hooks/delete-key-name", hookDeleteKeyName)
+	mux.HandleFunc("POST /hooks/parse-key-event", hookParseKeyEvent)
 
 	shared.RunPlugin(mux)
 }
