@@ -21,7 +21,7 @@
                    style="flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;"
                    id="remap-input"
                    data-init="document.getElementById('remap-input').focus()"
-                   data-on:keydown="captureRemap(evt, '{{.ComboKey}}', {{.IsHold}})"
+                   data-on:keydown="evt.preventDefault(); evt.stopPropagation(); var _r = captureRemapKey(evt); _r === 'escape' ? @post('/v1/plugins/keyboard/hooks/cancel-remap') : (_r !== 'ignore' && @post('/v1/plugins/keyboard/hooks/remap', {payload: {old_combo: '{{.ComboKey}}', new_combo: _r, is_hold: {{.IsHold}}}}))"
                    data-on:blur__debounce.200ms="@post('/v1/plugins/keyboard/hooks/cancel-remap')">
             <button class="icon-btn" title="Cancel" data-on:click="@post('/v1/plugins/keyboard/hooks/cancel-remap')">&#10005;</button>
             {{else}}
@@ -47,5 +47,3 @@
     50% { border-color: rgba(0, 122, 255, 0.3); }
 }
 </style>
-
-<!-- captureRemap() is in /branchkit-ui.js (loaded by frame.html) -->

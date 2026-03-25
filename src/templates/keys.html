@@ -6,6 +6,12 @@
                 data-on:click="$addingKey = !$addingKey; $capturedKeycode = 0; $capturedKeyChar = ''; $keyNameInput = ''">+ Add Key Name</button>
     </div>
 
+    {{if .Error}}
+    <div style="padding: 8px 20px; background: rgba(255,59,48,0.1); color: #ff3b30; font-size: 12px; border-bottom: 1px solid rgba(255,59,48,0.2);">
+        {{.Error}}
+    </div>
+    {{end}}
+
     <!-- Step 1: Capture a keypress -->
     <div data-show="$addingKey && $capturedKeycode === 0"
          style="padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(0,122,255,0.05);">

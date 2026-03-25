@@ -327,6 +327,7 @@ type PluginState struct {
 	OverridesTomlPath string
 	Registry          InternalRegistry
 	RemappingCombo    string // empty = not remapping
+	KeysError         string // error message shown on next Keys tab render, then cleared
 }
 
 func newPluginState() *PluginState {

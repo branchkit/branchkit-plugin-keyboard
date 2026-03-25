@@ -40,6 +40,7 @@ type keyNameView struct {
 type keysTemplateData struct {
 	Keys  []keyNameView
 	Count int
+	Error string
 }
 
 func fetchKeyNames() ([]keyNameEntry, error) {
@@ -118,9 +119,16 @@ func renderKeysSettings(search string) string {
 		return views[i].Name < views[j].Name
 	})
 
+	// Consume any pending error from hooks
+	mu.Lock()
+	keysError := state.KeysError
+	state.KeysError = ""
+	mu.Unlock()
+
 	data := keysTemplateData{
 		Keys:  views,
 		Count: len(views),
+		Error: keysError,
 	}
 
 	var buf bytes.Buffer
@@ -148,7 +156,10 @@ func hookSetKeyName(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Name == "" {
-		http.Error(w, "name must not be empty", http.StatusBadRequest)
+		mu.Lock()
+		state.KeysError = "Key name must not be empty."
+		mu.Unlock()
+		shared.WriteJSON(w, OkResponse{OK: false})
 		return
 	}
 
@@ -159,11 +170,12 @@ func hookSetKeyName(w http.ResponseWriter, r *http.Request) {
 	}, "", nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] set key name error: %v\n", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		mu.Lock()
+		state.KeysError = fmt.Sprintf("Failed to save key name: %v", err)
+		mu.Unlock()
 	}
 
-	shared.WriteJSON(w, OkResponse{OK: true})
+	shared.WriteJSON(w, OkResponse{OK: err == nil})
 }
 
 func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
@@ -179,9 +191,10 @@ func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
 	}, "", nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] delete key name error: %v\n", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		mu.Lock()
+		state.KeysError = fmt.Sprintf("Failed to delete key name: %v", err)
+		mu.Unlock()
 	}
 
-	shared.WriteJSON(w, OkResponse{OK: true})
+	shared.WriteJSON(w, OkResponse{OK: err == nil})
 }
