@@ -28,16 +28,14 @@
             <span style="font-family: 'SF Mono', monospace;">{{.ComboDisplay}}</span>
             <button class="icon-btn edit-btn" title="Remap keybind"
                     data-on:click="fetch('/v1/plugins/keybinds/hooks/start-remap', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({combo: '{{.ComboKey}}'})})">&#9998;</button>
-            {{end}}
-        </div>
-        <div class="value">{{.ActionLabel}}</div>
-        <div><span class="badge {{.BadgeClass}}">{{.SourceLabel}}</span></div>
-        <div class="row-actions">
             {{if .IsOverride}}
             <button class="icon-btn" title="Reset to default"
                     data-on:click="fetch('/v1/plugins/keybinds/hooks/reset', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({combo_key: '{{.ComboKey}}', is_hold: {{.IsHold}}})})">&#x21ba;</button>
             {{end}}
+            {{end}}
         </div>
+        <div class="value">{{.ActionLabel}}</div>
+        <div><span class="badge {{.BadgeClass}}">{{.SourceLabel}}</span></div>
     </div>
     {{end}}
     {{end}}
