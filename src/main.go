@@ -335,6 +335,10 @@ type PluginState struct {
 	KeyNameDefaults  map[string]uint16 // from bundled JSON
 	KeyNameOverrides map[string]uint16 // user overrides
 	KeyNamesMerged   map[string]uint16 // defaults + overrides merged
+	// Layout: cached from GET /v1/native/keyboard-layout at startup
+	LayoutName       string            // e.g. "U.S."
+	LayoutMappings   map[string]string // keycode (as string) → character
+	LayoutCharacters map[string]string // physical key name → character (joined)
 }
 
 func newPluginState() *PluginState {
@@ -818,9 +822,72 @@ func loadAndPushKeyNames(p *shared.PlatformClient) {
 		len(merged), len(defaults), len(overrides))
 }
 
+// buildLayoutCharacters joins key names with layout mappings to produce
+// a physicalName → character map. Exported logic for testability.
+func buildLayoutCharacters(keyNames map[string]uint16, layoutMappings map[string]string) map[string]string {
+	// Build keycode → physical name inverse map
+	keycodeToName := make(map[uint16]string, len(keyNames))
+	for name, kc := range keyNames {
+		keycodeToName[kc] = name
+	}
+
+	// Join: for each keycode in layout, if it has a key name, map name → character
+	chars := make(map[string]string)
+	for kcStr, ch := range layoutMappings {
+		var kc uint64
+		if _, err := fmt.Sscanf(kcStr, "%d", &kc); err != nil {
+			continue
+		}
+		if name, ok := keycodeToName[uint16(kc)]; ok {
+			chars[name] = ch
+		}
+	}
+	return chars
+}
+
+// loadAndPushLayoutCharacters fetches the keyboard layout from the actuator's
+// raw OS endpoint, joins with key names, caches locally, and pushes the
+// layout_characters store.
+func loadAndPushLayoutCharacters(p *shared.PlatformClient) {
+	type layoutResp struct {
+		LayoutID   string            `json:"layout_id"`
+		LayoutName string            `json:"layout_name"`
+		Mappings   map[string]string `json:"mappings"`
+	}
+	var layout layoutResp
+	if err := p.GetJSON("/v1/native/keyboard-layout", &layout); err != nil {
+		fmt.Fprintf(os.Stderr, "[keyboard] Failed to fetch keyboard layout: %v\n", err)
+		return
+	}
+
+	mu.Lock()
+	merged := state.KeyNamesMerged
+	mu.Unlock()
+
+	chars := buildLayoutCharacters(merged, layout.Mappings)
+
+	mu.Lock()
+	state.LayoutName = layout.LayoutName
+	state.LayoutMappings = layout.Mappings
+	state.LayoutCharacters = chars
+	mu.Unlock()
+
+	// Push to layout_characters store
+	body := struct {
+		Data map[string]string `json:"data"`
+	}{Data: chars}
+	if err := p.PostJSON("/v1/plugins/stores/layout_characters", body, "", nil); err != nil {
+		fmt.Fprintf(os.Stderr, "[keyboard] Failed to push layout_characters store: %v\n", err)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[keyboard] Pushed %d layout characters to store (layout: %s)\n",
+		len(chars), layout.LayoutID)
+}
+
 func main() {
 	platform = shared.NewPlatformClient()
 	loadAndPushKeyNames(platform)
+	loadAndPushLayoutCharacters(platform)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", shared.HealthHandler())
 	mux.HandleFunc("POST /hooks/build-registry", hookBuildRegistry)

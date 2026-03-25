@@ -79,6 +79,55 @@ func TestSetKeyNameOverride_MergesCorrectly(t *testing.T) {
 	mu.Unlock()
 }
 
+func TestBuildLayoutCharacters_USQwerty(t *testing.T) {
+	keyNames := map[string]uint16{"a": 0, "z": 6, "return": 36}
+	layoutMappings := map[string]string{"0": "a", "6": "z", "36": "\r"}
+
+	chars := buildLayoutCharacters(keyNames, layoutMappings)
+
+	if chars["a"] != "a" {
+		t.Errorf("a = %q, want \"a\"", chars["a"])
+	}
+	if chars["z"] != "z" {
+		t.Errorf("z = %q, want \"z\"", chars["z"])
+	}
+	if chars["return"] != "\r" {
+		t.Errorf("return = %q, want \"\\r\"", chars["return"])
+	}
+}
+
+func TestBuildLayoutCharacters_QWERTZ(t *testing.T) {
+	keyNames := map[string]uint16{"y": 16, "z": 6}
+	// On QWERTZ: keycode 6 produces "y", keycode 16 produces "z"
+	layoutMappings := map[string]string{"6": "y", "16": "z"}
+
+	chars := buildLayoutCharacters(keyNames, layoutMappings)
+
+	// Physical key "z" (keycode 6) produces "y" on QWERTZ
+	if chars["z"] != "y" {
+		t.Errorf("z = %q, want \"y\" (QWERTZ)", chars["z"])
+	}
+	// Physical key "y" (keycode 16) produces "z" on QWERTZ
+	if chars["y"] != "z" {
+		t.Errorf("y = %q, want \"z\" (QWERTZ)", chars["y"])
+	}
+}
+
+func TestBuildLayoutCharacters_UnknownKeycodes(t *testing.T) {
+	keyNames := map[string]uint16{"a": 0}
+	// Keycode 99 is in layout but has no key name
+	layoutMappings := map[string]string{"0": "a", "99": "?"}
+
+	chars := buildLayoutCharacters(keyNames, layoutMappings)
+
+	if len(chars) != 1 {
+		t.Errorf("expected 1 entry, got %d (unknown keycodes should be skipped)", len(chars))
+	}
+	if chars["a"] != "a" {
+		t.Errorf("a = %q, want \"a\"", chars["a"])
+	}
+}
+
 func TestDeleteKeyNameOverride_RevertsToDefault(t *testing.T) {
 	mu.Lock()
 	state.KeyNameDefaults = map[string]uint16{"a": 0, "z": 6}

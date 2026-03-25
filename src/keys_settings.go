@@ -62,28 +62,23 @@ func localKeyNames() []keyNameEntry {
 	return entries
 }
 
-type layoutResponse struct {
-	LayoutID   string            `json:"layout_id"`
-	LayoutName string            `json:"layout_name"`
-	Mappings   map[string]string `json:"mappings"`
-}
-
-func fetchKeyboardLayout() (*layoutResponse, error) {
-	var resp layoutResponse
-	err := platform.GetJSON("/v1/native/keyboard-layout", &resp)
-	if err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
 func renderKeysSettings(search string) string {
 	keys := localKeyNames()
 
-	layout, err := fetchKeyboardLayout()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] failed to fetch keyboard layout: %v\n", err)
-		layout = &layoutResponse{Mappings: map[string]string{}}
+	// Read layout data from local state (cached at startup)
+	mu.Lock()
+	layoutMappings := state.LayoutMappings
+	layoutName := state.LayoutName
+	keysError := state.KeysError
+	state.KeysError = ""
+	editingKeyName := state.EditingKeyName
+	mu.Unlock()
+
+	if layoutMappings == nil {
+		layoutMappings = map[string]string{}
+	}
+	if layoutName == "" {
+		layoutName = "Unknown"
 	}
 
 	var views []keyNameView
@@ -92,7 +87,7 @@ func renderKeysSettings(search string) string {
 			continue
 		}
 
-		character := layout.Mappings[fmt.Sprintf("%d", k.Keycode)]
+		character := layoutMappings[fmt.Sprintf("%d", k.Keycode)]
 		if character == "" {
 			character = "–"
 		}
@@ -112,18 +107,6 @@ func renderKeysSettings(search string) string {
 	sort.Slice(views, func(i, j int) bool {
 		return views[i].Name < views[j].Name
 	})
-
-	// Consume any pending error and editing state from hooks
-	mu.Lock()
-	keysError := state.KeysError
-	state.KeysError = ""
-	editingKeyName := state.EditingKeyName
-	mu.Unlock()
-
-	layoutName := layout.LayoutName
-	if layoutName == "" {
-		layoutName = "Unknown"
-	}
 
 	data := keysTemplateData{
 		Keys:           views,
