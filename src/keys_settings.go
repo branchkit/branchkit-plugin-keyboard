@@ -36,9 +36,8 @@ type keyNameView struct {
 }
 
 type keysTemplateData struct {
-	Keys    []keyNameView
-	Count   int
-	Adding  bool
+	Keys  []keyNameView
+	Count int
 }
 
 func fetchKeyNames() ([]keyNameEntry, error) {

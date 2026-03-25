@@ -1,24 +1,43 @@
-<div id="settings-table-container" class="settings-table">
+<div id="settings-table-container" class="settings-table"
+     data-signals="{addingKey: false, capturedKeycode: 0, capturedKeyChar: '', keyNameInput: ''}">
     <div style="padding: 8px 20px; display: flex; align-items: center; justify-content: space-between;">
         <span style="font-size: 11px; color: var(--text-dim);">{{.Count}} key names</span>
         <button style="font-size: 11px; padding: 2px 8px;"
-                data-on:click="$addingKey = !$addingKey">+ Add Key Name</button>
+                data-on:click="$addingKey = !$addingKey; $capturedKeycode = 0; $capturedKeyChar = ''; $keyNameInput = ''">+ Add Key Name</button>
     </div>
 
-    {{if .Adding}}
-    <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(0,122,255,0.05);">
-        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">Press a key to capture its keycode, then enter a name.</div>
+    <!-- Step 1: Capture a keypress -->
+    <div data-show="$addingKey && $capturedKeycode === 0"
+         style="padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(0,122,255,0.05);">
+        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">Press a key to capture its keycode.</div>
         <div style="display: flex; gap: 8px; align-items: center;">
             <input type="text" readonly placeholder="Press a key..."
-                   id="key-capture-input"
                    style="flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;"
-                   data-init="document.getElementById('key-capture-input').focus()"
-                   data-on:keydown="captureKeyName(evt)">
+                   data-on:keydown="evt.preventDefault(); evt.stopPropagation(); $capturedKeycode = evt.keyCode; $capturedKeyChar = evt.key">
             <button class="icon-btn" title="Cancel"
                     data-on:click="$addingKey = false">&#10005;</button>
         </div>
     </div>
-    {{end}}
+
+    <!-- Step 2: Name the captured key -->
+    <div data-show="$addingKey && $capturedKeycode > 0"
+         style="padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(0,122,255,0.05);">
+        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
+            Captured key: <strong data-text="$capturedKeyChar"></strong> (keycode <span data-text="$capturedKeycode"></span>)
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" placeholder="Enter a name for this key..."
+                   style="flex: 1;"
+                   data-bind="keyNameInput"
+                   data-on:keydown="evt.key === 'Enter' && $keyNameInput && @post('/v1/plugins/keyboard/hooks/set-key-name', {payload: {name: $keyNameInput, keycode: $capturedKeycode}})">
+            <button style="font-size: 11px; padding: 2px 8px;"
+                    data-on:click="@post('/v1/plugins/keyboard/hooks/set-key-name', {payload: {name: $keyNameInput, keycode: $capturedKeycode}})">Save</button>
+            <button class="icon-btn" title="Recapture"
+                    data-on:click="$capturedKeycode = 0; $capturedKeyChar = ''">&#x21ba;</button>
+            <button class="icon-btn" title="Cancel"
+                    data-on:click="$addingKey = false">&#10005;</button>
+        </div>
+    </div>
 
     <div class="table-header" style="grid-template-columns: 1fr 1fr 80px 80px 40px;">
         <div>Key Name</div>
@@ -49,5 +68,3 @@
     50% { border-color: rgba(0, 122, 255, 0.3); }
 }
 </style>
-
-<!-- captureKeyName() defined in branchkit-ui.js -->
