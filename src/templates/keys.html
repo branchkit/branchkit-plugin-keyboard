@@ -54,16 +54,29 @@
     </div>
     {{range .Keys}}
     <div class="settings-row{{if eq .Source "user"}} modified{{end}}" style="grid-template-columns: 1fr 1fr 80px 80px 40px;">
-        <div class="label" style="font-family: 'SF Mono', monospace; font-size: 12px;">{{.Name}}</div>
+        <div class="label" style="display: flex; align-items: center; gap: 6px;">
+            {{if eq $.EditingKeyName .Name}}
+            <input type="text" readonly placeholder="Press a key..."
+                   style="flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite; font-family: 'SF Mono', monospace; font-size: 12px;"
+                   id="edit-key-input"
+                   data-init="document.getElementById('edit-key-input').focus()"
+                   data-on:keydown="evt.preventDefault(); evt.stopPropagation(); @post('/v1/plugins/keyboard/hooks/edit-key-keydown', {payload: {code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey}})"
+                   data-on:blur__debounce.200ms="@post('/v1/plugins/keyboard/hooks/cancel-edit-key')">
+            <button class="icon-btn" title="Cancel" data-on:click="@post('/v1/plugins/keyboard/hooks/cancel-edit-key')">&#10005;</button>
+            {{else}}
+            <span style="font-family: 'SF Mono', monospace; font-size: 12px;">{{.Name}}</span>
+            <button class="icon-btn edit-btn" title="Edit key mapping"
+                    data-on:click="@post('/v1/plugins/keyboard/hooks/start-edit-key', {payload: {name: {{.NameJSON}}}})">&#9998;</button>
+            {{if eq .Source "user"}}
+            <button class="icon-btn" title="Reset to default"
+                    data-on:click="@post('/v1/plugins/keyboard/hooks/delete-key-name', {payload: {name: {{.NameJSON}}}})">&#x21ba;</button>
+            {{end}}
+            {{end}}
+        </div>
         <div style="font-size: 13px;">{{.Character}}</div>
         <div style="font-size: 11px; color: var(--text-dim);">{{.Keycode}}</div>
         <div><span class="badge {{.BadgeClass}}">{{.SourceLabel}}</span></div>
-        <div>
-            {{if eq .Source "user"}}
-            <button class="icon-btn" title="Delete override"
-                    data-on:click="@post('/v1/plugins/keyboard/hooks/delete-key-name', {payload: {name: {{.NameJSON}}}})">&#10005;</button>
-            {{end}}
-        </div>
+        <div></div>
     </div>
     {{end}}
 </div>

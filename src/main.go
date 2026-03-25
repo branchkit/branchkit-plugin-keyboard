@@ -328,6 +328,7 @@ type PluginState struct {
 	Registry          InternalRegistry
 	RemappingCombo    string // empty = not remapping
 	KeysError         string // error message shown on next Keys tab render, then cleared
+	EditingKeyName    string // key name being edited (empty = not editing)
 }
 
 func newPluginState() *PluginState {
@@ -763,6 +764,9 @@ func main() {
 	mux.HandleFunc("POST /hooks/stop-capture", hookStopCapture)
 	mux.HandleFunc("POST /hooks/set-key-name", hookSetKeyName)
 	mux.HandleFunc("POST /hooks/delete-key-name", hookDeleteKeyName)
+	mux.HandleFunc("POST /hooks/start-edit-key", hookStartEditKey)
+	mux.HandleFunc("POST /hooks/cancel-edit-key", hookCancelEditKey)
+	mux.HandleFunc("POST /hooks/edit-key-keydown", hookEditKeyKeydown)
 	mux.HandleFunc("POST /hooks/parse-key-event", hookParseKeyEvent)
 	mux.HandleFunc("POST /hooks/remap-keydown", hookRemapKeydown)
 

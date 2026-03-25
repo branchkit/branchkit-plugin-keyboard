@@ -38,9 +38,10 @@ type keyNameView struct {
 }
 
 type keysTemplateData struct {
-	Keys  []keyNameView
-	Count int
-	Error string
+	Keys           []keyNameView
+	Count          int
+	Error          string
+	EditingKeyName string // name being edited (empty = not editing)
 }
 
 func fetchKeyNames() ([]keyNameEntry, error) {
@@ -119,16 +120,18 @@ func renderKeysSettings(search string) string {
 		return views[i].Name < views[j].Name
 	})
 
-	// Consume any pending error from hooks
+	// Consume any pending error and editing state from hooks
 	mu.Lock()
 	keysError := state.KeysError
 	state.KeysError = ""
+	editingKeyName := state.EditingKeyName
 	mu.Unlock()
 
 	data := keysTemplateData{
-		Keys:  views,
-		Count: len(views),
-		Error: keysError,
+		Keys:           views,
+		Count:          len(views),
+		Error:          keysError,
+		EditingKeyName: editingKeyName,
 	}
 
 	var buf bytes.Buffer
@@ -168,12 +171,13 @@ func hookSetKeyName(w http.ResponseWriter, r *http.Request) {
 		"name":    req.Name,
 		"keycode": req.Keycode,
 	}, "", nil)
+	mu.Lock()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] set key name error: %v\n", err)
-		mu.Lock()
 		state.KeysError = fmt.Sprintf("Failed to save key name: %v", err)
-		mu.Unlock()
 	}
+	state.EditingKeyName = "" // clear editing state on save attempt
+	mu.Unlock()
 
 	shared.WriteJSON(w, OkResponse{OK: err == nil})
 }
@@ -195,6 +199,127 @@ func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
 		state.KeysError = fmt.Sprintf("Failed to delete key name: %v", err)
 		mu.Unlock()
 	}
+
+	shared.WriteJSON(w, OkResponse{OK: err == nil})
+}
+
+type startEditKeyRequest struct {
+	Name string `json:"name"`
+}
+
+func hookStartEditKey(w http.ResponseWriter, r *http.Request) {
+	var req startEditKeyRequest
+	if err := shared.ReadJSON(r, &req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	mu.Lock()
+	state.EditingKeyName = req.Name
+	mu.Unlock()
+
+	shared.WriteJSON(w, OkResponse{OK: true})
+}
+
+func hookCancelEditKey(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	state.EditingKeyName = ""
+	mu.Unlock()
+
+	shared.WriteJSON(w, OkResponse{OK: true})
+}
+
+// hookEditKeyKeydown handles a keypress during key name editing.
+// The user pressed a key to reassign what keycode a key name maps to.
+// We parse the DOM event to get the BranchKit key name of the pressed key,
+// look up its platform keycode, and save the override.
+func hookEditKeyKeydown(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Code  string `json:"code"`
+		Key   string `json:"key"`
+		Ctrl  bool   `json:"ctrl"`
+		Alt   bool   `json:"alt"`
+		Shift bool   `json:"shift"`
+		Meta  bool   `json:"meta"`
+	}
+	if err := shared.ReadJSON(r, &req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	mu.Lock()
+	editingName := state.EditingKeyName
+	mu.Unlock()
+
+	if editingName == "" {
+		shared.WriteJSON(w, OkResponse{OK: true})
+		return
+	}
+
+	// Escape → cancel
+	if req.Key == "Escape" {
+		mu.Lock()
+		state.EditingKeyName = ""
+		mu.Unlock()
+		shared.WriteJSON(w, OkResponse{OK: true})
+		return
+	}
+
+	// Parse the DOM event
+	parsed := parseDOMKeyEvent(DOMKeyEvent{
+		Code: req.Code, Key: req.Key,
+		CtrlKey: req.Ctrl, AltKey: req.Alt, ShiftKey: req.Shift, MetaKey: req.Meta,
+	})
+
+	// Bare modifier or unknown → ignore
+	if parsed.IsBareModifier {
+		shared.WriteJSON(w, OkResponse{OK: true})
+		return
+	}
+
+	// Look up the pressed key's platform keycode from the key name map
+	var keysResp struct {
+		Keys []keyNameEntry `json:"keys"`
+	}
+	if err := platform.GetJSON("/v1/key-names", &keysResp); err != nil {
+		mu.Lock()
+		state.KeysError = fmt.Sprintf("Failed to look up keycodes: %v", err)
+		state.EditingKeyName = ""
+		mu.Unlock()
+		shared.WriteJSON(w, OkResponse{OK: false})
+		return
+	}
+
+	var newKeycode uint16
+	for _, k := range keysResp.Keys {
+		if k.Name == parsed.KeyName {
+			newKeycode = k.Keycode
+			break
+		}
+	}
+
+	if newKeycode == 0 {
+		mu.Lock()
+		state.KeysError = fmt.Sprintf("Unknown key: %s", parsed.KeyName)
+		state.EditingKeyName = ""
+		mu.Unlock()
+		shared.WriteJSON(w, OkResponse{OK: false})
+		return
+	}
+
+	// Save override: existing name → new keycode
+	err := platform.PostJSON("/v1/key-names/override", map[string]any{
+		"action":  "set",
+		"name":    editingName,
+		"keycode": newKeycode,
+	}, "", nil)
+
+	mu.Lock()
+	if err != nil {
+		state.KeysError = fmt.Sprintf("Failed to update key: %v", err)
+	}
+	state.EditingKeyName = ""
+	mu.Unlock()
 
 	shared.WriteJSON(w, OkResponse{OK: err == nil})
 }
