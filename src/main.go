@@ -363,6 +363,13 @@ type RemapRequest struct {
 	IsHold   bool   `json:"is_hold"`
 }
 
+// RemapKeydownRequest accepts raw DOM key event properties + remap context.
+type RemapKeydownRequest struct {
+	DOMKeyEvent
+	OldCombo string `json:"old_combo"`
+	IsHold   bool   `json:"is_hold"`
+}
+
 type ResetRequest struct {
 	ComboKey string `json:"combo_key"`
 	IsHold   bool   `json:"is_hold"`
@@ -526,28 +533,34 @@ func hookRemap(w http.ResponseWriter, r *http.Request) {
 
 	mu.Lock()
 	defer mu.Unlock()
+	result := applyRemap(req.OldCombo, req.NewCombo, req.IsHold)
+	shared.WriteJSON(w, result)
+}
+
+// applyRemap performs the core remap logic. Caller must hold mu.Lock().
+func applyRemap(oldCombo, newCombo string, isHold bool) SnapshotWithControl {
 	overrides := loadUserKeybindOverrides(state.OverridesTomlPath)
 
-	if req.IsHold {
-		downAction := findActionForCombo(&state.Registry, req.OldCombo+" DOWN")
-		upAction := findActionForCombo(&state.Registry, req.OldCombo+" UP")
+	if isHold {
+		downAction := findActionForCombo(&state.Registry, oldCombo+" DOWN")
+		upAction := findActionForCombo(&state.Registry, oldCombo+" UP")
 		if downAction != "" {
-			overrides[req.NewCombo+" DOWN"] = downAction
+			overrides[newCombo+" DOWN"] = downAction
 		}
 		if upAction != "" {
-			overrides[req.NewCombo+" UP"] = upAction
+			overrides[newCombo+" UP"] = upAction
 		}
-		if req.OldCombo != req.NewCombo {
-			overrides[req.OldCombo+" DOWN"] = ""
-			overrides[req.OldCombo+" UP"] = ""
+		if oldCombo != newCombo {
+			overrides[oldCombo+" DOWN"] = ""
+			overrides[oldCombo+" UP"] = ""
 		}
 	} else {
-		action := findActionForCombo(&state.Registry, req.OldCombo)
+		action := findActionForCombo(&state.Registry, oldCombo)
 		if action != "" {
-			overrides[req.NewCombo] = action
+			overrides[newCombo] = action
 		}
-		if req.OldCombo != req.NewCombo {
-			overrides[req.OldCombo] = ""
+		if oldCombo != newCombo {
+			overrides[oldCombo] = ""
 		}
 	}
 
@@ -555,14 +568,57 @@ func hookRemap(w http.ResponseWriter, r *http.Request) {
 	state.RemappingCombo = ""
 	snapshot := state.rebuild()
 
-	shared.WriteJSON(w, SnapshotWithControl{
+	return SnapshotWithControl{
 		Entries:  snapshot.Entries,
 		ListenUp: snapshot.ListenUp,
 		Control: &ControlDirectives{
 			Signals:       []string{"keybind:resume"},
 			RebuildStores: []string{"keybinds"},
 		},
-	})
+	}
+}
+
+func hookRemapKeydown(w http.ResponseWriter, r *http.Request) {
+	var req RemapKeydownRequest
+	if err := shared.ReadJSON(r, &req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	parsed := parseDOMKeyEvent(req.DOMKeyEvent)
+
+	// Escape → cancel remap
+	if parsed.IsEscape {
+		mu.Lock()
+		defer mu.Unlock()
+		state.RemappingCombo = ""
+		shared.WriteJSON(w, OkWithControl{
+			OK:      true,
+			Control: &ControlDirectives{Signals: []string{"keybind:resume"}},
+		})
+		return
+	}
+
+	// Bare modifier or unknown key → no-op
+	if parsed.IsBareModifier {
+		shared.WriteJSON(w, OkResponse{OK: true})
+		return
+	}
+
+	// No modifiers → reject
+	if !parsed.HasModifiers {
+		mu.Lock()
+		state.KeysError = "Remap requires at least one modifier key."
+		mu.Unlock()
+		shared.WriteJSON(w, OkResponse{OK: false})
+		return
+	}
+
+	// Valid combo → apply remap
+	mu.Lock()
+	defer mu.Unlock()
+	result := applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
+	shared.WriteJSON(w, result)
 }
 
 func hookCancelRemap(w http.ResponseWriter, r *http.Request) {
@@ -708,6 +764,7 @@ func main() {
 	mux.HandleFunc("POST /hooks/set-key-name", hookSetKeyName)
 	mux.HandleFunc("POST /hooks/delete-key-name", hookDeleteKeyName)
 	mux.HandleFunc("POST /hooks/parse-key-event", hookParseKeyEvent)
+	mux.HandleFunc("POST /hooks/remap-keydown", hookRemapKeydown)
 
 	shared.RunPlugin(mux)
 }
