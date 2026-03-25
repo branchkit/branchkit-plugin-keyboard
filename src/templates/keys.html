@@ -1,7 +1,7 @@
 <div id="settings-table-container" class="settings-table"
      data-signals="{addingKey: false, capturedKeycode: 0, capturedKeyChar: '', keyNameInput: ''}">
     <div style="padding: 8px 20px; display: flex; align-items: center; justify-content: space-between;">
-        <span style="font-size: 11px; color: var(--text-dim);">{{.Count}} key names</span>
+        <span style="font-size: 11px; color: var(--text-dim);">{{.Count}} key names · Layout: {{.LayoutName}}</span>
         <button style="font-size: 11px; padding: 2px 8px;"
                 data-on:click="$addingKey = !$addingKey; $capturedKeycode = 0; $capturedKeyChar = ''; $keyNameInput = ''">+ Add Key Name</button>
     </div>

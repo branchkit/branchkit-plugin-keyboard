@@ -42,6 +42,7 @@ type keysTemplateData struct {
 	Count          int
 	Error          string
 	EditingKeyName string // name being edited (empty = not editing)
+	LayoutName     string // detected OS keyboard layout name
 }
 
 func fetchKeyNames() ([]keyNameEntry, error) {
@@ -127,11 +128,17 @@ func renderKeysSettings(search string) string {
 	editingKeyName := state.EditingKeyName
 	mu.Unlock()
 
+	layoutName := layout.LayoutName
+	if layoutName == "" {
+		layoutName = "Unknown"
+	}
+
 	data := keysTemplateData{
 		Keys:           views,
 		Count:          len(views),
 		Error:          keysError,
 		EditingKeyName: editingKeyName,
+		LayoutName:     layoutName,
 	}
 
 	var buf bytes.Buffer
