@@ -1,4 +1,4 @@
-module github.com/branchkit/plugins/keybinds
+module github.com/branchkit/plugins/keyboard
 
 go 1.24
 

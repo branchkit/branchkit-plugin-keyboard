@@ -393,7 +393,7 @@ type SnapshotWithControl struct {
 
 // --- Settings rendering ---
 
-var corePluginIDs = map[string]bool{"voice": true, "keybinds": true, "wm": true}
+var corePluginIDs = map[string]bool{"voice": true, "keyboard": true, "wm": true}
 
 func capitalize(s string) string {
 	if s == "" {
@@ -462,7 +462,7 @@ func hookBuildRegistry(w http.ResponseWriter, r *http.Request) {
 	// Read keybinds from the shared store (already excludes disabled plugins)
 	keybindsByPlugin, err := platform.GetKeybindsStore()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keybinds] failed to read store: %v\n", err)
+		fmt.Fprintf(os.Stderr, "[keyboard] failed to read store: %v\n", err)
 		keybindsByPlugin = make(map[string]map[string]string)
 	}
 
@@ -655,7 +655,7 @@ func hookOnStoreUpdated(w http.ResponseWriter, r *http.Request) {
 	// Re-read the keybinds store and rebuild the internal registry
 	keybindsByPlugin, err := platform.GetKeybindsStore()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keybinds] on-store-updated: failed to read store: %v\n", err)
+		fmt.Fprintf(os.Stderr, "[keyboard] on-store-updated: failed to read store: %v\n", err)
 		shared.WriteJSON(w, OkResponse{OK: false})
 		return
 	}
