@@ -17,15 +17,12 @@
     <div class="settings-row{{if .IsOverride}} modified{{end}}">
         <div class="label">
             {{if eq $.RemappingCombo .ComboKey}}
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <input type="text" readonly placeholder="Press new key combo..."
-                       style="width: 180px; border-color: var(--accent); animation: pulse 1.5s infinite;"
-                       id="remap-input"
-                       autofocus
-                       data-on:keydown="captureRemap(evt, '{{.ComboKey}}', {{.IsHold}})"
-                       data-on:blur__debounce.200ms="fetch('/v1/plugins/keybinds/hooks/cancel-remap', {method: 'POST'})">
-                <button class="edit-cancel" data-on:click="fetch('/v1/plugins/keybinds/hooks/cancel-remap', {method: 'POST'})">&#10005;</button>
-            </div>
+            <input type="text" readonly placeholder="Press new key combo..."
+                   style="width: 100%; border-color: var(--accent); animation: pulse 1.5s infinite;"
+                   id="remap-input"
+                   data-init="document.getElementById('remap-input').focus()"
+                   data-on:keydown="captureRemap(evt, '{{.ComboKey}}', {{.IsHold}})"
+                   data-on:blur__debounce.200ms="fetch('/v1/plugins/keybinds/hooks/cancel-remap', {method: 'POST'})">
             {{else}}
             <span style="font-family: 'SF Mono', monospace;">{{.ComboDisplay}}</span>
             {{end}}
@@ -33,7 +30,9 @@
         <div class="value">{{.ActionLabel}}</div>
         <div><span class="badge {{.BadgeClass}}">{{.SourceLabel}}</span></div>
         <div class="row-actions">
-            {{if not (eq $.RemappingCombo .ComboKey)}}
+            {{if eq $.RemappingCombo .ComboKey}}
+            <button class="icon-btn" title="Cancel" data-on:click="fetch('/v1/plugins/keybinds/hooks/cancel-remap', {method: 'POST'})">&#10005;</button>
+            {{else}}
             <button class="icon-btn edit-btn" title="Remap keybind"
                     data-on:click="fetch('/v1/plugins/keybinds/hooks/start-remap', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({combo: '{{.ComboKey}}'})})">&#9998;</button>
             {{end}}
