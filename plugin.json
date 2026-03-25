@@ -6,9 +6,10 @@
   "description": "Global hotkey capture and keybind registry.",
   "author": "BranchKit",
   "provides": {
-    "stores": ["keybinds"],
+    "stores": ["keybinds", "key_names"],
     "store_schemas": {
-      "keybinds": { "merge": "keyed", "content_type": "keybind_registry" }
+      "keybinds": { "merge": "keyed", "content_type": "keybind_registry" },
+      "key_names": { "merge": "authoritative", "content_type": "key_names" }
     }
   },
   "run": "./keybind-plugin",

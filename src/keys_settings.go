@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -40,15 +41,27 @@ type keysTemplateData struct {
 	LayoutName     string // detected OS keyboard layout name
 }
 
-func fetchKeyNames() ([]keyNameEntry, error) {
-	var resp struct {
-		Keys []keyNameEntry `json:"keys"`
+// localKeyNames returns key name entries from the plugin's in-memory state.
+// No actuator call needed — the keyboard plugin owns this data.
+func localKeyNames() []keyNameEntry {
+	mu.Lock()
+	merged := state.KeyNamesMerged
+	overrides := state.KeyNameOverrides
+	mu.Unlock()
+
+	if merged == nil {
+		return nil
 	}
-	err := platform.GetJSON("/v1/key-names", &resp)
-	if err != nil {
-		return nil, err
+
+	entries := make([]keyNameEntry, 0, len(merged))
+	for name, keycode := range merged {
+		source := "default"
+		if _, ok := overrides[name]; ok {
+			source = "user"
+		}
+		entries = append(entries, keyNameEntry{Name: name, Keycode: keycode, Source: source})
 	}
-	return resp.Keys, nil
+	return entries
 }
 
 type layoutResponse struct {
@@ -67,11 +80,7 @@ func fetchKeyboardLayout() (*layoutResponse, error) {
 }
 
 func renderKeysSettings(search string) string {
-	keys, err := fetchKeyNames()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] failed to fetch key names: %v\n", err)
-		keys = nil
-	}
+	keys := localKeyNames()
 
 	layout, err := fetchKeyboardLayout()
 	if err != nil {
@@ -134,6 +143,82 @@ func renderKeysSettings(search string) string {
 	return buf.String()
 }
 
+// setKeyNameOverride adds or updates a user override, re-merges, saves, and re-pushes the store.
+// Caller must NOT hold mu.
+func setKeyNameOverride(name string, keycode uint16) error {
+	mu.Lock()
+	state.KeyNameOverrides[name] = keycode
+	state.KeyNamesMerged[name] = keycode
+	overrides := make(map[string]uint16, len(state.KeyNameOverrides))
+	for k, v := range state.KeyNameOverrides {
+		overrides[k] = v
+	}
+	merged := make(map[string]uint16, len(state.KeyNamesMerged))
+	for k, v := range state.KeyNamesMerged {
+		merged[k] = v
+	}
+	mu.Unlock()
+
+	if err := saveKeyNameOverrides(overrides); err != nil {
+		return err
+	}
+	return pushKeyNamesToStore(merged)
+}
+
+// deleteKeyNameOverride removes a user override, re-merges from defaults, saves, and re-pushes.
+// Caller must NOT hold mu.
+func deleteKeyNameOverride(name string) error {
+	mu.Lock()
+	delete(state.KeyNameOverrides, name)
+	// Re-merge from defaults
+	merged := make(map[string]uint16, len(state.KeyNameDefaults))
+	for k, v := range state.KeyNameDefaults {
+		merged[k] = v
+	}
+	for k, v := range state.KeyNameOverrides {
+		merged[k] = v
+	}
+	state.KeyNamesMerged = merged
+	overrides := make(map[string]uint16, len(state.KeyNameOverrides))
+	for k, v := range state.KeyNameOverrides {
+		overrides[k] = v
+	}
+	mergedCopy := make(map[string]uint16, len(merged))
+	for k, v := range merged {
+		mergedCopy[k] = v
+	}
+	mu.Unlock()
+
+	if err := saveKeyNameOverrides(overrides); err != nil {
+		return err
+	}
+	return pushKeyNamesToStore(mergedCopy)
+}
+
+func saveKeyNameOverrides(overrides map[string]uint16) error {
+	appSupport := os.Getenv("BRANCHKIT_APP_SUPPORT")
+	if appSupport == "" {
+		return fmt.Errorf("BRANCHKIT_APP_SUPPORT not set")
+	}
+	path := filepath.Join(appSupport, "key_names.json")
+	if len(overrides) == 0 {
+		os.Remove(path)
+		return nil
+	}
+	data, err := json.MarshalIndent(overrides, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
+func pushKeyNamesToStore(merged map[string]uint16) error {
+	body := struct {
+		Data map[string]uint16 `json:"data"`
+	}{Data: merged}
+	return platform.PostJSON("/v1/plugins/stores/key_names", body, "", nil)
+}
+
 type deleteKeyNameRequest struct {
 	Name string `json:"name"`
 }
@@ -145,18 +230,14 @@ func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := platform.PostJSON("/v1/key-names/override", map[string]any{
-		"action": "delete",
-		"name":   req.Name,
-	}, "", nil)
-	if err != nil {
+	if err := deleteKeyNameOverride(req.Name); err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] delete key name error: %v\n", err)
 		mu.Lock()
 		state.KeysError = fmt.Sprintf("Failed to delete key name: %v", err)
 		mu.Unlock()
 	}
 
-	shared.WriteJSON(w, OkResponse{OK: err == nil})
+	shared.WriteJSON(w, OkResponse{OK: true})
 }
 
 type startEditKeyRequest struct {
@@ -232,49 +313,27 @@ func hookEditKeyKeydown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up the pressed key's platform keycode from the key name map
-	var keysResp struct {
-		Keys []keyNameEntry `json:"keys"`
-	}
-	if err := platform.GetJSON("/v1/key-names", &keysResp); err != nil {
-		mu.Lock()
-		state.KeysError = fmt.Sprintf("Failed to look up keycodes: %v", err)
-		state.EditingKeyName = ""
-		mu.Unlock()
-		shared.WriteJSON(w, OkResponse{OK: false})
-		return
-	}
+	// Look up the pressed key's platform keycode from local state
+	mu.Lock()
+	newKeycode, found := state.KeyNamesMerged[parsed.KeyName]
+	mu.Unlock()
 
-	var newKeycode uint16
-	for _, k := range keysResp.Keys {
-		if k.Name == parsed.KeyName {
-			newKeycode = k.Keycode
-			break
-		}
-	}
-
-	if newKeycode == 0 {
+	if !found {
 		mu.Lock()
 		state.KeysError = fmt.Sprintf("Unknown key: %s", parsed.KeyName)
-		state.EditingKeyName = ""
 		mu.Unlock()
 		shared.WriteJSON(w, OkResponse{OK: false})
 		return
 	}
 
 	// Save override: existing name → new keycode
-	err := platform.PostJSON("/v1/key-names/override", map[string]any{
-		"action":  "set",
-		"name":    editingName,
-		"keycode": newKeycode,
-	}, "", nil)
-
-	mu.Lock()
-	if err != nil {
+	if err := setKeyNameOverride(editingName, newKeycode); err != nil {
+		mu.Lock()
 		state.KeysError = fmt.Sprintf("Failed to update key: %v", err)
+		mu.Unlock()
+		shared.WriteJSON(w, OkResponse{OK: false})
+		return
 	}
-	state.EditingKeyName = ""
-	mu.Unlock()
 
-	shared.WriteJSON(w, OkResponse{OK: err == nil})
+	shared.WriteJSON(w, OkResponse{OK: true})
 }

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -329,6 +331,10 @@ type PluginState struct {
 	RemappingCombo    string // empty = not remapping
 	KeysError         string // error message shown on next Keys tab render, then cleared
 	EditingKeyName    string // key name being edited (empty = not editing)
+	// Key names: physical key name → keycode (loaded from data/key_names_macos.json + user overrides)
+	KeyNameDefaults  map[string]uint16 // from bundled JSON
+	KeyNameOverrides map[string]uint16 // user overrides
+	KeyNamesMerged   map[string]uint16 // defaults + overrides merged
 }
 
 func newPluginState() *PluginState {
@@ -748,8 +754,73 @@ func hookStopCapture(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// loadKeyNames loads key_names_macos.json from the plugin data dir,
+// merges user overrides, stores in plugin state, and pushes to the key_names store.
+func loadAndPushKeyNames(p *shared.PlatformClient) {
+	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
+	if pluginDir == "" {
+		pluginDir = "."
+	}
+
+	// Load defaults from bundled JSON
+	dataPath := filepath.Join(pluginDir, "data", "key_names_macos.json")
+	data, err := os.ReadFile(dataPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[keyboard] Failed to read %s: %v\n", dataPath, err)
+		return
+	}
+	var defaults map[string]uint16
+	if err := json.Unmarshal(data, &defaults); err != nil {
+		fmt.Fprintf(os.Stderr, "[keyboard] Failed to parse %s: %v\n", dataPath, err)
+		return
+	}
+
+	// Load user overrides from app support dir
+	appSupport := os.Getenv("BRANCHKIT_APP_SUPPORT")
+	var overrides map[string]uint16
+	if appSupport != "" {
+		overridePath := filepath.Join(appSupport, "key_names.json")
+		if ovData, err := os.ReadFile(overridePath); err == nil {
+			if err := json.Unmarshal(ovData, &overrides); err != nil {
+				fmt.Fprintf(os.Stderr, "[keyboard] Failed to parse key name overrides: %v\n", err)
+			}
+		}
+	}
+	if overrides == nil {
+		overrides = make(map[string]uint16)
+	}
+
+	// Merge: defaults + overrides
+	merged := make(map[string]uint16, len(defaults))
+	for k, v := range defaults {
+		merged[k] = v
+	}
+	for k, v := range overrides {
+		merged[k] = v
+	}
+
+	// Store in plugin state
+	mu.Lock()
+	state.KeyNameDefaults = defaults
+	state.KeyNameOverrides = overrides
+	state.KeyNamesMerged = merged
+	mu.Unlock()
+
+	// Push to key_names store
+	body := struct {
+		Data map[string]uint16 `json:"data"`
+	}{Data: merged}
+	if err := p.PostJSON("/v1/plugins/stores/key_names", body, "", nil); err != nil {
+		fmt.Fprintf(os.Stderr, "[keyboard] Failed to push key_names store: %v\n", err)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[keyboard] Pushed %d key names to store (%d defaults + %d overrides)\n",
+		len(merged), len(defaults), len(overrides))
+}
+
 func main() {
 	platform = shared.NewPlatformClient()
+	loadAndPushKeyNames(platform)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", shared.HealthHandler())
 	mux.HandleFunc("POST /hooks/build-registry", hookBuildRegistry)
