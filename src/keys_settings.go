@@ -62,6 +62,20 @@ func localKeyNames() []keyNameEntry {
 	return entries
 }
 
+// isPrintable returns true if the string contains only visible, printable characters.
+// Returns false for control characters, whitespace-only strings, and empty strings.
+func isPrintable(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
 func renderKeysSettings(search string) string {
 	keys := localKeyNames()
 
@@ -88,7 +102,7 @@ func renderKeysSettings(search string) string {
 		}
 
 		character := layoutMappings[fmt.Sprintf("%d", k.Keycode)]
-		if character == "" {
+		if character == "" || !isPrintable(character) {
 			character = "–"
 		}
 
