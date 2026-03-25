@@ -45,22 +45,20 @@ type keysTemplateData struct {
 // No actuator call needed — the keyboard plugin owns this data.
 func localKeyNames() []keyNameEntry {
 	mu.Lock()
-	merged := state.KeyNamesMerged
-	overrides := state.KeyNameOverrides
-	mu.Unlock()
-
-	if merged == nil {
+	if state.KeyNamesMerged == nil {
+		mu.Unlock()
 		return nil
 	}
-
-	entries := make([]keyNameEntry, 0, len(merged))
-	for name, keycode := range merged {
+	// Copy under lock to avoid races with setKeyNameOverride/deleteKeyNameOverride
+	entries := make([]keyNameEntry, 0, len(state.KeyNamesMerged))
+	for name, keycode := range state.KeyNamesMerged {
 		source := "default"
-		if _, ok := overrides[name]; ok {
+		if _, ok := state.KeyNameOverrides[name]; ok {
 			source = "user"
 		}
 		entries = append(entries, keyNameEntry{Name: name, Keycode: keycode, Source: source})
 	}
+	mu.Unlock()
 	return entries
 }
 
@@ -230,14 +228,15 @@ func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := deleteKeyNameOverride(req.Name); err != nil {
+	err := deleteKeyNameOverride(req.Name)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] delete key name error: %v\n", err)
 		mu.Lock()
 		state.KeysError = fmt.Sprintf("Failed to delete key name: %v", err)
 		mu.Unlock()
 	}
 
-	shared.WriteJSON(w, OkResponse{OK: true})
+	shared.WriteJSON(w, OkResponse{OK: err == nil})
 }
 
 type startEditKeyRequest struct {

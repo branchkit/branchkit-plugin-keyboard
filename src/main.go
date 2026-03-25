@@ -754,7 +754,7 @@ func hookStopCapture(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// loadKeyNames loads key_names_macos.json from the plugin data dir,
+// loadAndPushKeyNames loads key_names_macos.json from the plugin data dir,
 // merges user overrides, stores in plugin state, and pushes to the key_names store.
 func loadAndPushKeyNames(p *shared.PlatformClient) {
 	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
