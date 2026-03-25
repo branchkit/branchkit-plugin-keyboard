@@ -580,29 +580,31 @@ func hookReset(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 	overrides := loadUserKeybindOverrides(state.OverridesTomlPath)
 
+	// Find the action for this combo so we can clean up related overrides
+	var action string
 	if req.IsHold {
+		action = findActionForCombo(&state.Registry, req.ComboKey+" DOWN")
 		delete(overrides, req.ComboKey+" DOWN")
 		delete(overrides, req.ComboKey+" UP")
-		for k, v := range overrides {
-			if v != "" {
-				continue
-			}
-			base := strings.TrimSuffix(k, " DOWN")
-			if base == k {
-				base = strings.TrimSuffix(k, " UP")
-			}
-			if base == req.ComboKey {
-				delete(overrides, k)
-			}
-		}
 	} else {
+		action = findActionForCombo(&state.Registry, req.ComboKey)
 		delete(overrides, req.ComboKey)
+	}
+
+	// Remove empty-string overrides that suppress the original default for this action.
+	// When a keybind is remapped (e.g. opt+b → opt+v), the old combo gets "" to suppress it.
+	// Resetting should remove those suppressions so the default comes back.
+	if action != "" {
 		for k, v := range overrides {
 			if v != "" {
 				continue
 			}
-			if k == req.ComboKey {
-				delete(overrides, k)
+			// This is a suppression entry — check if the suppressed combo's default
+			// action (from plugin manifests, pre-override) matches what we're resetting
+			for _, pluginBinds := range state.KeybindsByPlugin {
+				if pluginAction, ok := pluginBinds[k]; ok && pluginAction == action {
+					delete(overrides, k)
+				}
 			}
 		}
 	}
