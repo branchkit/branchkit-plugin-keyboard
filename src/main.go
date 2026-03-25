@@ -762,7 +762,6 @@ func main() {
 	mux.HandleFunc("POST /hooks/on-store-updated", hookOnStoreUpdated)
 	mux.HandleFunc("POST /hooks/start-capture", hookStartCapture)
 	mux.HandleFunc("POST /hooks/stop-capture", hookStopCapture)
-	mux.HandleFunc("POST /hooks/set-key-name", hookSetKeyName)
 	mux.HandleFunc("POST /hooks/delete-key-name", hookDeleteKeyName)
 	mux.HandleFunc("POST /hooks/start-edit-key", hookStartEditKey)
 	mux.HandleFunc("POST /hooks/cancel-edit-key", hookCancelEditKey)

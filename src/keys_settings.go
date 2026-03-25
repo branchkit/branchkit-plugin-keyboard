@@ -17,9 +17,7 @@ import (
 //go:embed templates/keys.html
 var keysTemplateHTML string
 
-var keysTemplate = template.Must(template.New("keys").Funcs(template.FuncMap{
-	"eq": func(a, b string) bool { return a == b },
-}).Parse(keysTemplateHTML))
+var keysTemplate = template.Must(template.New("keys").Parse(keysTemplateHTML))
 
 type keyNameEntry struct {
 	Name    string `json:"name"`
@@ -28,13 +26,10 @@ type keyNameEntry struct {
 }
 
 type keyNameView struct {
-	Name        string
-	NameJSON    template.JS // JSON-escaped name safe for use in Datastar expressions
-	Keycode     uint16
-	Character   string
-	Source      string
-	BadgeClass  string
-	SourceLabel string
+	Name      string
+	NameJSON  template.JS // JSON-escaped name, kept for edit/reset hooks (hidden until key remapping)
+	Keycode   uint16
+	Character string
 }
 
 type keysTemplateData struct {
@@ -95,25 +90,15 @@ func renderKeysSettings(search string) string {
 			character = "–"
 		}
 
-		badgeClass := "badge-core"
-		sourceLabel := "Default"
-		if k.Source == "user" {
-			badgeClass = "badge-user"
-			sourceLabel = "User"
-		}
-
 		// JSON-encode name for safe interpolation in Datastar expressions
 		nameBytes, _ := json.Marshal(k.Name)
 		nameJSON := template.JS(string(nameBytes))
 
 		views = append(views, keyNameView{
-			Name:        k.Name,
-			NameJSON:    nameJSON,
-			Keycode:     k.Keycode,
-			Character:   character,
-			Source:      k.Source,
-			BadgeClass:  badgeClass,
-			SourceLabel: sourceLabel,
+			Name:      k.Name,
+			NameJSON:  nameJSON,
+			Keycode:   k.Keycode,
+			Character: character,
 		})
 	}
 
@@ -149,44 +134,8 @@ func renderKeysSettings(search string) string {
 	return buf.String()
 }
 
-type setKeyNameRequest struct {
-	Name    string `json:"name"`
-	Keycode uint16 `json:"keycode"`
-}
-
 type deleteKeyNameRequest struct {
 	Name string `json:"name"`
-}
-
-func hookSetKeyName(w http.ResponseWriter, r *http.Request) {
-	var req setKeyNameRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if req.Name == "" {
-		mu.Lock()
-		state.KeysError = "Key name must not be empty."
-		mu.Unlock()
-		shared.WriteJSON(w, OkResponse{OK: false})
-		return
-	}
-
-	err := platform.PostJSON("/v1/key-names/override", map[string]any{
-		"action":  "set",
-		"name":    req.Name,
-		"keycode": req.Keycode,
-	}, "", nil)
-	mu.Lock()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] set key name error: %v\n", err)
-		state.KeysError = fmt.Sprintf("Failed to save key name: %v", err)
-	}
-	state.EditingKeyName = "" // clear editing state on save attempt
-	mu.Unlock()
-
-	shared.WriteJSON(w, OkResponse{OK: err == nil})
 }
 
 func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
