@@ -822,6 +822,12 @@ func loadAndPushKeyNames(p *shared.PlatformClient) {
 		len(merged), len(defaults), len(overrides))
 }
 
+func hookOnLayoutChanged(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(os.Stderr, "[keyboard] Layout changed — re-fetching and re-pushing layout_characters\n")
+	loadAndPushLayoutCharacters(platform)
+	shared.WriteJSON(w, OkResponse{OK: true})
+}
+
 // buildLayoutCharacters joins key names with layout mappings to produce
 // a physicalName → character map. Iterates key names directly so aliases
 // (multiple names for the same keycode, e.g. "backslash" and "\") all
@@ -898,6 +904,7 @@ func main() {
 	mux.HandleFunc("POST /hooks/edit-key-keydown", hookEditKeyKeydown)
 	mux.HandleFunc("POST /hooks/parse-key-event", hookParseKeyEvent)
 	mux.HandleFunc("POST /hooks/remap-keydown", hookRemapKeydown)
+	mux.HandleFunc("POST /hooks/on-layout-changed", hookOnLayoutChanged)
 
 	shared.RunPlugin(mux)
 }
