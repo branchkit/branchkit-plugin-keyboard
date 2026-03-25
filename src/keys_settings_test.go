@@ -128,6 +128,45 @@ func TestBuildLayoutCharacters_UnknownKeycodes(t *testing.T) {
 	}
 }
 
+func TestBuildLayoutCharacters_Aliases(t *testing.T) {
+	// "backslash" and "\\" both map to keycode 42
+	keyNames := map[string]uint16{"backslash": 42, "\\": 42}
+	layoutMappings := map[string]string{"42": "\\"}
+
+	chars := buildLayoutCharacters(keyNames, layoutMappings)
+
+	// Both aliases should get the character
+	if chars["backslash"] != "\\" {
+		t.Errorf("backslash = %q, want \"\\\\\"", chars["backslash"])
+	}
+	if chars["\\"] != "\\" {
+		t.Errorf("\\\\ = %q, want \"\\\\\"", chars["\\"])
+	}
+	if len(chars) != 2 {
+		t.Errorf("expected 2 entries (both aliases), got %d", len(chars))
+	}
+}
+
+func TestBuildLayoutCharacters_EmptyInputs(t *testing.T) {
+	// Empty key names
+	chars := buildLayoutCharacters(nil, map[string]string{"0": "a"})
+	if len(chars) != 0 {
+		t.Errorf("nil key names: expected 0 entries, got %d", len(chars))
+	}
+
+	// Empty layout
+	chars = buildLayoutCharacters(map[string]uint16{"a": 0}, nil)
+	if len(chars) != 0 {
+		t.Errorf("nil layout: expected 0 entries, got %d", len(chars))
+	}
+
+	// Both empty
+	chars = buildLayoutCharacters(nil, nil)
+	if len(chars) != 0 {
+		t.Errorf("both nil: expected 0 entries, got %d", len(chars))
+	}
+}
+
 func TestDeleteKeyNameOverride_RevertsToDefault(t *testing.T) {
 	mu.Lock()
 	state.KeyNameDefaults = map[string]uint16{"a": 0, "z": 6}

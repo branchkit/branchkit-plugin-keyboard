@@ -823,22 +823,14 @@ func loadAndPushKeyNames(p *shared.PlatformClient) {
 }
 
 // buildLayoutCharacters joins key names with layout mappings to produce
-// a physicalName → character map. Exported logic for testability.
+// a physicalName → character map. Iterates key names directly so aliases
+// (multiple names for the same keycode, e.g. "backslash" and "\") all
+// get their layout character.
 func buildLayoutCharacters(keyNames map[string]uint16, layoutMappings map[string]string) map[string]string {
-	// Build keycode → physical name inverse map
-	keycodeToName := make(map[uint16]string, len(keyNames))
+	chars := make(map[string]string, len(keyNames))
 	for name, kc := range keyNames {
-		keycodeToName[kc] = name
-	}
-
-	// Join: for each keycode in layout, if it has a key name, map name → character
-	chars := make(map[string]string)
-	for kcStr, ch := range layoutMappings {
-		var kc uint64
-		if _, err := fmt.Sscanf(kcStr, "%d", &kc); err != nil {
-			continue
-		}
-		if name, ok := keycodeToName[uint16(kc)]; ok {
+		kcStr := fmt.Sprintf("%d", kc)
+		if ch, ok := layoutMappings[kcStr]; ok {
 			chars[name] = ch
 		}
 	}
