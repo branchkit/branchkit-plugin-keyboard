@@ -1,0 +1,53 @@
+<div id="settings-table-container" class="settings-table">
+    <div style="padding: 8px 20px; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 11px; color: var(--text-dim);">{{.Count}} key names</span>
+        <button style="font-size: 11px; padding: 2px 8px;"
+                data-on:click="$addingKey = !$addingKey">+ Add Key Name</button>
+    </div>
+
+    {{if .Adding}}
+    <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); background: rgba(0,122,255,0.05);">
+        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">Press a key to capture its keycode, then enter a name.</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" readonly placeholder="Press a key..."
+                   id="key-capture-input"
+                   style="flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;"
+                   data-init="document.getElementById('key-capture-input').focus()"
+                   data-on:keydown="captureKeyName(evt)">
+            <button class="icon-btn" title="Cancel"
+                    data-on:click="$addingKey = false">&#10005;</button>
+        </div>
+    </div>
+    {{end}}
+
+    <div class="table-header" style="grid-template-columns: 1fr 1fr 80px 80px 40px;">
+        <div>Key Name</div>
+        <div>Your Keyboard</div>
+        <div>Keycode</div>
+        <div>Source</div>
+        <div></div>
+    </div>
+    {{range .Keys}}
+    <div class="settings-row{{if eq .Source "user"}} modified{{end}}" style="grid-template-columns: 1fr 1fr 80px 80px 40px;">
+        <div class="label" style="font-family: 'SF Mono', monospace; font-size: 12px;">{{.Name}}</div>
+        <div style="font-size: 13px;">{{.Character}}</div>
+        <div style="font-size: 11px; color: var(--text-dim);">{{.Keycode}}</div>
+        <div><span class="badge {{.BadgeClass}}">{{.SourceLabel}}</span></div>
+        <div>
+            {{if eq .Source "user"}}
+            <button class="icon-btn" title="Delete override"
+                    data-on:click="@post('/v1/plugins/keyboard/hooks/delete-key-name', {payload: {name: '{{.Name}}'}})">&#10005;</button>
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+</div>
+
+<style>
+@keyframes pulse {
+    0%, 100% { border-color: var(--accent); }
+    50% { border-color: rgba(0, 122, 255, 0.3); }
+}
+</style>
+
+<!-- captureKeyName() defined in branchkit-ui.js -->

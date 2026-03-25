@@ -482,9 +482,17 @@ func hookRenderSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-	html := renderSettings(state, strings.ToLower(req.Search))
+	var html string
+	search := strings.ToLower(req.Search)
+
+	switch req.TabKey {
+	case "keys":
+		html = renderKeysSettings(search)
+	default:
+		mu.Lock()
+		html = renderSettings(state, search)
+		mu.Unlock()
+	}
 
 	shared.WriteJSON(w, shared.SettingsResponse{HTML: html})
 }
@@ -696,6 +704,8 @@ func main() {
 	mux.HandleFunc("POST /hooks/on-store-updated", hookOnStoreUpdated)
 	mux.HandleFunc("POST /hooks/start-capture", hookStartCapture)
 	mux.HandleFunc("POST /hooks/stop-capture", hookStopCapture)
+	mux.HandleFunc("POST /hooks/set-key-name", hookSetKeyName)
+	mux.HandleFunc("POST /hooks/delete-key-name", hookDeleteKeyName)
 
 	shared.RunPlugin(mux)
 }

@@ -13,7 +13,7 @@
   },
   "run": "./keybind-plugin",
   "hooks": {
-    "settings_tabs": [{"label": "Keybinds", "key": "keybinds"}],
+    "settings_tabs": [{"label": "Keybinds", "key": "keybinds"}, {"label": "Keys", "key": "keys"}],
     "render_settings": true,
     "on_store_updated": true
   }
