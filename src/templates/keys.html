@@ -55,7 +55,7 @@
         <div>
             {{if eq .Source "user"}}
             <button class="icon-btn" title="Delete override"
-                    data-on:click="@post('/v1/plugins/keyboard/hooks/delete-key-name', {payload: {name: '{{.Name}}'}})">&#10005;</button>
+                    data-on:click="@post('/v1/plugins/keyboard/hooks/delete-key-name', {payload: {name: {{.NameJSON}}}})">&#10005;</button>
             {{end}}
         </div>
     </div>

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -28,6 +29,7 @@ type keyNameEntry struct {
 
 type keyNameView struct {
 	Name        string
+	NameJSON    template.JS // JSON-escaped name safe for use in Datastar expressions
 	Keycode     uint16
 	Character   string
 	Source      string
@@ -97,8 +99,13 @@ func renderKeysSettings(search string) string {
 			sourceLabel = "User"
 		}
 
+		// JSON-encode name for safe interpolation in Datastar expressions
+		nameBytes, _ := json.Marshal(k.Name)
+		nameJSON := template.JS(string(nameBytes))
+
 		views = append(views, keyNameView{
 			Name:        k.Name,
+			NameJSON:    nameJSON,
 			Keycode:     k.Keycode,
 			Character:   character,
 			Source:      k.Source,
@@ -140,6 +147,11 @@ func hookSetKeyName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Name == "" {
+		http.Error(w, "name must not be empty", http.StatusBadRequest)
+		return
+	}
+
 	err := platform.PostJSON("/v1/key-names/override", map[string]any{
 		"action":  "set",
 		"name":    req.Name,
@@ -147,6 +159,8 @@ func hookSetKeyName(w http.ResponseWriter, r *http.Request) {
 	}, "", nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] set key name error: %v\n", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	shared.WriteJSON(w, OkResponse{OK: true})
@@ -165,6 +179,8 @@ func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
 	}, "", nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] delete key name error: %v\n", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	shared.WriteJSON(w, OkResponse{OK: true})
