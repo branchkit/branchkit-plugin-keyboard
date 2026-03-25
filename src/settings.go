@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"html/template"
 	"sort"
 	"strings"
@@ -14,11 +15,13 @@ var keybindsTemplateHTML string
 type keybindRowView struct {
 	ComboDisplay string
 	ComboKey     string
+	ComboKeyJSON template.JS // JSON-escaped for safe use in Datastar expressions
 	ActionLabel  string
 	BadgeClass   string
 	SourceLabel  string
 	IsOverride   bool
 	IsHold       bool
+	IsHoldJSON   template.JS // "true" or "false" for safe JS embedding
 }
 
 type keybindGroupView struct {
@@ -92,14 +95,17 @@ func renderSettings(ps *PluginState, search string) string {
 				hasOverrides = true
 			}
 
+			ckJSON, _ := json.Marshal(ck)
 			rowsBySource[groupName] = append(rowsBySource[groupName], keybindRowView{
 				ComboDisplay: comboDisplay,
 				ComboKey:     ck,
+				ComboKeyJSON: template.JS(string(ckJSON)),
 				ActionLabel:  actionLabel,
 				BadgeClass:   ifStr(isOverride, "badge-user", "badge-core"),
 				SourceLabel:  sourceBadgeLabel(downEntry.Entry.Source),
 				IsOverride:   isOverride,
 				IsHold:       true,
+				IsHoldJSON:   "true",
 			})
 		} else {
 			for _, e := range entries {
@@ -119,14 +125,17 @@ func renderSettings(ps *PluginState, search string) string {
 					hasOverrides = true
 				}
 
+				ckJSON2, _ := json.Marshal(ck)
 				rowsBySource[groupName] = append(rowsBySource[groupName], keybindRowView{
 					ComboDisplay: comboDisplay,
 					ComboKey:     ck,
+					ComboKeyJSON: template.JS(string(ckJSON2)),
 					ActionLabel:  actionLabel,
 					BadgeClass:   ifStr(isOverride, "badge-user", "badge-core"),
 					SourceLabel:  sourceBadgeLabel(e.Entry.Source),
 					IsOverride:   isOverride,
 					IsHold:       false,
+					IsHoldJSON:   "false",
 				})
 			}
 		}

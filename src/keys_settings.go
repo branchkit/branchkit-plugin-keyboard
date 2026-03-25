@@ -254,8 +254,10 @@ func hookEditKeyKeydown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Atomically read and clear editing state — prevents concurrent edit races
 	mu.Lock()
 	editingName := state.EditingKeyName
+	state.EditingKeyName = "" // claim this edit, any concurrent request sees empty
 	mu.Unlock()
 
 	if editingName == "" {
@@ -263,11 +265,8 @@ func hookEditKeyKeydown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Escape → cancel
+	// Escape → cancel (editing already cleared above)
 	if req.Key == "Escape" {
-		mu.Lock()
-		state.EditingKeyName = ""
-		mu.Unlock()
 		shared.WriteJSON(w, OkResponse{OK: true})
 		return
 	}

@@ -21,16 +21,16 @@
                    style="flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;"
                    id="remap-input"
                    data-init="document.getElementById('remap-input').focus()"
-                   data-on:keydown="evt.preventDefault(); evt.stopPropagation(); @post('/v1/plugins/keyboard/hooks/remap-keydown', {payload: {code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey, old_combo: '{{.ComboKey}}', is_hold: {{.IsHold}}}})"
+                   data-on:keydown="evt.preventDefault(); evt.stopPropagation(); @post('/v1/plugins/keyboard/hooks/remap-keydown', {payload: {code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey, old_combo: {{.ComboKeyJSON}}, is_hold: {{.IsHoldJSON}}}})"
                    data-on:blur__debounce.200ms="@post('/v1/plugins/keyboard/hooks/cancel-remap')">
             <button class="icon-btn" title="Cancel" data-on:click="@post('/v1/plugins/keyboard/hooks/cancel-remap')">&#10005;</button>
             {{else}}
             <span style="font-family: 'SF Mono', monospace;">{{.ComboDisplay}}</span>
             <button class="icon-btn edit-btn" title="Remap keybind"
-                    data-on:click="@post('/v1/plugins/keyboard/hooks/start-remap', {payload: {combo: '{{.ComboKey}}'}})">&#9998;</button>
+                    data-on:click="@post('/v1/plugins/keyboard/hooks/start-remap', {payload: {combo: {{.ComboKeyJSON}}}})">&#9998;</button>
             {{if .IsOverride}}
             <button class="icon-btn" title="Reset to default"
-                    data-on:click="@post('/v1/plugins/keyboard/hooks/reset', {payload: {combo_key: '{{.ComboKey}}', is_hold: {{.IsHold}}}})">&#x21ba;</button>
+                    data-on:click="@post('/v1/plugins/keyboard/hooks/reset', {payload: {combo_key: {{.ComboKeyJSON}}, is_hold: {{.IsHoldJSON}}}})">&#x21ba;</button>
             {{end}}
             {{end}}
         </div>
