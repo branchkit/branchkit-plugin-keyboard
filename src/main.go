@@ -712,38 +712,6 @@ func hookResetAll(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type OnStoreUpdatedRequest struct {
-	Store string `json:"store"`
-}
-
-func hookOnStoreUpdated(w http.ResponseWriter, r *http.Request) {
-	var req OnStoreUpdatedRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if req.Store != "keybinds" {
-		shared.WriteJSON(w, OkResponse{OK: true})
-		return
-	}
-
-	// Re-read the keybinds store and rebuild the internal registry
-	keybindsByPlugin, err := platform.GetKeybindsStore()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] on-store-updated: failed to read store: %v\n", err)
-		shared.WriteJSON(w, OkResponse{OK: false})
-		return
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	state.KeybindsByPlugin = keybindsByPlugin
-	state.rebuild()
-
-	shared.WriteJSON(w, OkResponse{OK: true})
-}
-
 func hookStartCapture(w http.ResponseWriter, r *http.Request) {
 	shared.WriteJSON(w, OkWithControl{
 		OK:      true,
@@ -820,12 +788,6 @@ func loadAndPushKeyNames(p *shared.PlatformClient) {
 	}
 	fmt.Fprintf(os.Stderr, "[keyboard] Pushed %d key names to store (%d defaults + %d overrides)\n",
 		len(merged), len(defaults), len(overrides))
-}
-
-func hookOnLayoutChanged(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(os.Stderr, "[keyboard] Layout changed — re-fetching and re-pushing layout_characters\n")
-	loadAndPushLayoutCharacters(platform)
-	shared.WriteJSON(w, OkResponse{OK: true})
 }
 
 // buildLayoutCharacters joins key names with layout mappings to produce
@@ -932,7 +894,6 @@ func main() {
 	mux.HandleFunc("POST /hooks/cancel-remap", hookCancelRemap)
 	mux.HandleFunc("POST /hooks/reset", hookReset)
 	mux.HandleFunc("POST /hooks/reset-all", hookResetAll)
-	mux.HandleFunc("POST /hooks/on-store-updated", hookOnStoreUpdated)
 	mux.HandleFunc("POST /hooks/start-capture", hookStartCapture)
 	mux.HandleFunc("POST /hooks/stop-capture", hookStopCapture)
 	mux.HandleFunc("POST /hooks/delete-key-name", hookDeleteKeyName)
@@ -941,7 +902,6 @@ func main() {
 	mux.HandleFunc("POST /hooks/edit-key-keydown", hookEditKeyKeydown)
 	mux.HandleFunc("POST /hooks/parse-key-event", hookParseKeyEvent)
 	mux.HandleFunc("POST /hooks/remap-keydown", hookRemapKeydown)
-	mux.HandleFunc("POST /hooks/on-layout-changed", hookOnLayoutChanged)
 
 	shared.RunPlugin(mux)
 }
