@@ -14,7 +14,6 @@
     }
   },
   "run": "./keybind-plugin",
-  "transport": "rpc",
   "consumes": {
     "events": [
       {"pattern": "_platform.store.updated"},
