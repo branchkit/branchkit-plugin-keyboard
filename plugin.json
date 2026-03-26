@@ -14,6 +14,13 @@
     }
   },
   "run": "./keybind-plugin",
+  "transport": "rpc",
+  "consumes": {
+    "events": [
+      {"pattern": "_platform.store.updated"},
+      {"pattern": "_platform.keyboard.layout_changed"}
+    ]
+  },
   "hooks": {
     "settings_tabs": [{"label": "Keybinds", "key": "keybinds"}, {"label": "Keys", "key": "keys"}],
     "render_settings": true

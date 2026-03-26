@@ -6,13 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"branchkit.local/shared"
 )
 
 //go:embed templates/keys.html
@@ -209,22 +206,17 @@ func saveKeyNameOverrides(overrides map[string]uint16) error {
 
 func pushKeyNamesToStore(merged map[string]uint16) error {
 	body := struct {
-		Data map[string]uint16 `json:"data"`
-	}{Data: merged}
-	return platform.PostJSON("/v1/plugins/stores/key_names", body, "", nil)
+		Name string             `json:"name"`
+		Data map[string]uint16  `json:"data"`
+	}{Name: "key_names", Data: merged}
+	return plugin.Call("store.push", body, nil)
 }
 
 type deleteKeyNameRequest struct {
 	Name string `json:"name"`
 }
 
-func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
-	var req deleteKeyNameRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+func handleDeleteKeyName(req *deleteKeyNameRequest) (any, error) {
 	err := deleteKeyNameOverride(req.Name)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] delete key name error: %v\n", err)
@@ -233,83 +225,63 @@ func hookDeleteKeyName(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 	}
 
-	shared.WriteJSON(w, OkResponse{OK: err == nil})
+	return OkResponse{OK: err == nil}, nil
 }
 
 type startEditKeyRequest struct {
 	Name string `json:"name"`
 }
 
-func hookStartEditKey(w http.ResponseWriter, r *http.Request) {
-	var req startEditKeyRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+func handleStartEditKey(req *startEditKeyRequest) (any, error) {
 	mu.Lock()
 	state.EditingKeyName = req.Name
 	mu.Unlock()
 
-	shared.WriteJSON(w, OkResponse{OK: true})
+	return OkResponse{OK: true}, nil
 }
 
-func hookCancelEditKey(w http.ResponseWriter, r *http.Request) {
+func handleCancelEditKey(_ *struct{}) (any, error) {
 	mu.Lock()
 	state.EditingKeyName = ""
 	mu.Unlock()
 
-	shared.WriteJSON(w, OkResponse{OK: true})
+	return OkResponse{OK: true}, nil
 }
 
-// hookEditKeyKeydown handles a keypress during key name editing.
-// The user pressed a key to reassign what keycode a key name maps to.
-// We parse the DOM event to get the BranchKit key name of the pressed key,
-// look up its platform keycode, and save the override.
-func hookEditKeyKeydown(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Code  string `json:"code"`
-		Key   string `json:"key"`
-		Ctrl  bool   `json:"ctrl"`
-		Alt   bool   `json:"alt"`
-		Shift bool   `json:"shift"`
-		Meta  bool   `json:"meta"`
-	}
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+type editKeyKeydownRequest struct {
+	Code  string `json:"code"`
+	Key   string `json:"key"`
+	Ctrl  bool   `json:"ctrl"`
+	Alt   bool   `json:"alt"`
+	Shift bool   `json:"shift"`
+	Meta  bool   `json:"meta"`
+}
 
-	// Atomically read and clear editing state — prevents concurrent edit races
+// handleEditKeyKeydown handles a keypress during key name editing.
+func handleEditKeyKeydown(req *editKeyKeydownRequest) (any, error) {
+	// Atomically read and clear editing state
 	mu.Lock()
 	editingName := state.EditingKeyName
-	state.EditingKeyName = "" // claim this edit, any concurrent request sees empty
+	state.EditingKeyName = ""
 	mu.Unlock()
 
 	if editingName == "" {
-		shared.WriteJSON(w, OkResponse{OK: true})
-		return
+		return OkResponse{OK: true}, nil
 	}
 
-	// Escape → cancel (editing already cleared above)
 	if req.Key == "Escape" {
-		shared.WriteJSON(w, OkResponse{OK: true})
-		return
+		return OkResponse{OK: true}, nil
 	}
 
-	// Parse the DOM event
 	parsed := parseDOMKeyEvent(DOMKeyEvent{
 		Code: req.Code, Key: req.Key,
 		CtrlKey: req.Ctrl, AltKey: req.Alt, ShiftKey: req.Shift, MetaKey: req.Meta,
 	})
 
-	// Bare modifier or unknown → ignore
 	if parsed.IsBareModifier {
-		shared.WriteJSON(w, OkResponse{OK: true})
-		return
+		return OkResponse{OK: true}, nil
 	}
 
-	// Look up the pressed key's platform keycode from local state
 	mu.Lock()
 	newKeycode, found := state.KeyNamesMerged[parsed.KeyName]
 	mu.Unlock()
@@ -318,18 +290,15 @@ func hookEditKeyKeydown(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		state.KeysError = fmt.Sprintf("Unknown key: %s", parsed.KeyName)
 		mu.Unlock()
-		shared.WriteJSON(w, OkResponse{OK: false})
-		return
+		return OkResponse{OK: false}, nil
 	}
 
-	// Save override: existing name → new keycode
 	if err := setKeyNameOverride(editingName, newKeycode); err != nil {
 		mu.Lock()
 		state.KeysError = fmt.Sprintf("Failed to update key: %v", err)
 		mu.Unlock()
-		shared.WriteJSON(w, OkResponse{OK: false})
-		return
+		return OkResponse{OK: false}, nil
 	}
 
-	shared.WriteJSON(w, OkResponse{OK: true})
+	return OkResponse{OK: true}, nil
 }

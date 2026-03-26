@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -469,20 +468,32 @@ var (
 	state = newPluginState()
 )
 
-var platform *shared.PlatformClient
+var plugin *shared.Plugin
 
-func hookBuildRegistry(w http.ResponseWriter, r *http.Request) {
-	var req BuildRegistryRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+// rpcHandler creates a HandlerFunc that unmarshals params into the given request type,
+// calls the handler, and returns the result.
+func rpcHandler[Req any](fn func(*Req) (any, error)) shared.HandlerFunc {
+	return func(params json.RawMessage) (any, error) {
+		var req Req
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &req); err != nil {
+				return nil, fmt.Errorf("bad params: %w", err)
+			}
+		}
+		return fn(&req)
 	}
+}
 
-	// Read keybinds from the shared store (already excludes disabled plugins)
-	keybindsByPlugin, err := platform.GetKeybindsStore()
-	if err != nil {
+func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
+	// Read keybinds from the shared store via RPC
+	var storeResp struct {
+		Data map[string]map[string]string `json:"data"`
+	}
+	keybindsByPlugin := make(map[string]map[string]string)
+	if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] failed to read store: %v\n", err)
-		keybindsByPlugin = make(map[string]map[string]string)
+	} else {
+		keybindsByPlugin = storeResp.Data
 	}
 
 	mu.Lock()
@@ -491,16 +502,10 @@ func hookBuildRegistry(w http.ResponseWriter, r *http.Request) {
 	state.OverridesTomlPath = req.OverridesTomlPath
 	snapshot := state.rebuild()
 
-	shared.WriteJSON(w, snapshot)
+	return snapshot, nil
 }
 
-func hookRenderSettings(w http.ResponseWriter, r *http.Request) {
-	var req RenderSettingsRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+func handleRenderSettings(req *RenderSettingsRequest) (any, error) {
 	var html string
 	search := strings.ToLower(req.Search)
 
@@ -513,39 +518,27 @@ func hookRenderSettings(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 	}
 
-	shared.WriteJSON(w, shared.SettingsResponse{HTML: html})
+	return shared.SettingsResponse{HTML: html}, nil
 }
 
-func hookStartRemap(w http.ResponseWriter, r *http.Request) {
-	var req StartRemapRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+func handleStartRemap(req *StartRemapRequest) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	state.RemappingCombo = req.Combo
 
-	shared.WriteJSON(w, OkWithControl{
+	return OkWithControl{
 		OK: true,
 		Control: &ControlDirectives{
 			Signals: []string{"keybind:pause"},
 		},
-	})
+	}, nil
 }
 
-func hookRemap(w http.ResponseWriter, r *http.Request) {
-	var req RemapRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+func handleRemap(req *RemapRequest) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	result := applyRemap(req.OldCombo, req.NewCombo, req.IsHold)
-	shared.WriteJSON(w, result)
+	return result, nil
 }
 
 // applyRemap performs the core remap logic. Caller must hold mu.Lock().
@@ -589,13 +582,7 @@ func applyRemap(oldCombo, newCombo string, isHold bool) SnapshotWithControl {
 	}
 }
 
-func hookRemapKeydown(w http.ResponseWriter, r *http.Request) {
-	var req RemapKeydownRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+func handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 	parsed := parseDOMKeyEvent(req.DOMKeyEvent)
 
 	// Escape → cancel remap
@@ -603,17 +590,15 @@ func hookRemapKeydown(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
 		state.RemappingCombo = ""
-		shared.WriteJSON(w, OkWithControl{
+		return OkWithControl{
 			OK:      true,
 			Control: &ControlDirectives{Signals: []string{"keybind:resume"}},
-		})
-		return
+		}, nil
 	}
 
 	// Bare modifier or unknown key → no-op
 	if parsed.IsBareModifier {
-		shared.WriteJSON(w, OkResponse{OK: true})
-		return
+		return OkResponse{OK: true}, nil
 	}
 
 	// No modifiers → reject
@@ -621,42 +606,34 @@ func hookRemapKeydown(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		state.KeysError = "Remap requires at least one modifier key."
 		mu.Unlock()
-		shared.WriteJSON(w, OkResponse{OK: false})
-		return
+		return OkResponse{OK: false}, nil
 	}
 
 	// Valid combo → apply remap
 	mu.Lock()
 	defer mu.Unlock()
 	result := applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
-	shared.WriteJSON(w, result)
+	return result, nil
 }
 
-func hookCancelRemap(w http.ResponseWriter, r *http.Request) {
+func handleCancelRemap(_ *struct{}) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	state.RemappingCombo = ""
 
-	shared.WriteJSON(w, OkWithControl{
+	return OkWithControl{
 		OK: true,
 		Control: &ControlDirectives{
 			Signals: []string{"keybind:resume"},
 		},
-	})
+	}, nil
 }
 
-func hookReset(w http.ResponseWriter, r *http.Request) {
-	var req ResetRequest
-	if err := shared.ReadJSON(r, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+func handleReset(req *ResetRequest) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	overrides := loadUserKeybindOverrides(state.OverridesTomlPath)
 
-	// Find the action for this combo so we can clean up related overrides
 	var action string
 	if req.IsHold {
 		action = findActionForCombo(&state.Registry, req.ComboKey+" DOWN")
@@ -667,16 +644,11 @@ func hookReset(w http.ResponseWriter, r *http.Request) {
 		delete(overrides, req.ComboKey)
 	}
 
-	// Remove empty-string overrides that suppress the original default for this action.
-	// When a keybind is remapped (e.g. opt+b → opt+v), the old combo gets "" to suppress it.
-	// Resetting should remove those suppressions so the default comes back.
 	if action != "" {
 		for k, v := range overrides {
 			if v != "" {
 				continue
 			}
-			// This is a suppression entry — check if the suppressed combo's default
-			// action (from plugin manifests, pre-override) matches what we're resetting
 			for _, pluginBinds := range state.KeybindsByPlugin {
 				if pluginAction, ok := pluginBinds[k]; ok && pluginAction == action {
 					delete(overrides, k)
@@ -688,47 +660,47 @@ func hookReset(w http.ResponseWriter, r *http.Request) {
 	saveUserKeybindOverrides(overrides, state.OverridesTomlPath)
 	snapshot := state.rebuild()
 
-	shared.WriteJSON(w, SnapshotWithControl{
+	return SnapshotWithControl{
 		Entries:  snapshot.Entries,
 		ListenUp: snapshot.ListenUp,
 		Control: &ControlDirectives{
 			RebuildStores: []string{"keybinds"},
 		},
-	})
+	}, nil
 }
 
-func hookResetAll(w http.ResponseWriter, r *http.Request) {
+func handleResetAll(_ *struct{}) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	removeOverridesFile(state.OverridesTomlPath)
 	snapshot := state.rebuild()
 
-	shared.WriteJSON(w, SnapshotWithControl{
+	return SnapshotWithControl{
 		Entries:  snapshot.Entries,
 		ListenUp: snapshot.ListenUp,
 		Control: &ControlDirectives{
 			RebuildStores: []string{"keybinds"},
 		},
-	})
+	}, nil
 }
 
-func hookStartCapture(w http.ResponseWriter, r *http.Request) {
-	shared.WriteJSON(w, OkWithControl{
+func handleStartCapture(_ *struct{}) (any, error) {
+	return OkWithControl{
 		OK:      true,
 		Control: &ControlDirectives{Signals: []string{"keybind:pause"}},
-	})
+	}, nil
 }
 
-func hookStopCapture(w http.ResponseWriter, r *http.Request) {
-	shared.WriteJSON(w, OkWithControl{
+func handleStopCapture(_ *struct{}) (any, error) {
+	return OkWithControl{
 		OK:      true,
 		Control: &ControlDirectives{Signals: []string{"keybind:resume"}},
-	})
+	}, nil
 }
 
 // loadAndPushKeyNames loads key_names_macos.json from the plugin data dir,
 // merges user overrides, stores in plugin state, and pushes to the key_names store.
-func loadAndPushKeyNames(p *shared.PlatformClient) {
+func loadAndPushKeyNames(p *shared.Plugin) {
 	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
 	if pluginDir == "" {
 		pluginDir = "."
@@ -778,11 +750,12 @@ func loadAndPushKeyNames(p *shared.PlatformClient) {
 	state.KeyNamesMerged = merged
 	mu.Unlock()
 
-	// Push to key_names store
+	// Push to key_names store via RPC
 	body := struct {
-		Data map[string]uint16 `json:"data"`
-	}{Data: merged}
-	if err := p.PostJSON("/v1/plugins/stores/key_names", body, "", nil); err != nil {
+		Name string             `json:"name"`
+		Data map[string]uint16  `json:"data"`
+	}{Name: "key_names", Data: merged}
+	if err := p.Call("store.push", body, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] Failed to push key_names store: %v\n", err)
 		return
 	}
@@ -805,17 +778,16 @@ func buildLayoutCharacters(keyNames map[string]uint16, layoutMappings map[string
 	return chars
 }
 
-// loadAndPushLayoutCharacters fetches the keyboard layout from the actuator's
-// raw OS endpoint, joins with key names, caches locally, and pushes the
-// layout_characters store.
-func loadAndPushLayoutCharacters(p *shared.PlatformClient) {
+// loadAndPushLayoutCharacters fetches the keyboard layout from the actuator,
+// joins with key names, caches locally, and pushes the layout_characters store.
+func loadAndPushLayoutCharacters(p *shared.Plugin) {
 	type layoutResp struct {
 		LayoutID   string            `json:"layout_id"`
 		LayoutName string            `json:"layout_name"`
 		Mappings   map[string]string `json:"mappings"`
 	}
 	var layout layoutResp
-	if err := p.GetJSON("/v1/native/keyboard-layout", &layout); err != nil {
+	if err := p.Call("native.keyboard_layout", nil, &layout); err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] Failed to fetch keyboard layout: %v\n", err)
 		return
 	}
@@ -832,11 +804,12 @@ func loadAndPushLayoutCharacters(p *shared.PlatformClient) {
 	state.LayoutCharacters = chars
 	mu.Unlock()
 
-	// Push to layout_characters store
+	// Push to layout_characters store via RPC
 	body := struct {
+		Name string            `json:"name"`
 		Data map[string]string `json:"data"`
-	}{Data: chars}
-	if err := p.PostJSON("/v1/plugins/stores/layout_characters", body, "", nil); err != nil {
+	}{Name: "layout_characters", Data: chars}
+	if err := p.Call("store.push", body, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "[keyboard] Failed to push layout_characters store: %v\n", err)
 		return
 	}
@@ -844,66 +817,63 @@ func loadAndPushLayoutCharacters(p *shared.PlatformClient) {
 		len(chars), layout.LayoutID)
 }
 
-func handleEvent(msg shared.PluginEventMessage) {
-	switch msg.EventType {
-	case "_platform.store.updated":
+func main() {
+	plugin = shared.NewPlugin()
+
+	// Push initial data to actuator stores
+	loadAndPushKeyNames(plugin)
+	loadAndPushLayoutCharacters(plugin)
+
+	// Subscribe to events (actuator→plugin notifications)
+	plugin.On("_platform.store.updated", func(params json.RawMessage) {
 		var payload struct {
 			Store string `json:"store"`
 		}
-		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+		if err := json.Unmarshal(params, &payload); err != nil {
 			return
 		}
 		if payload.Store != "keybinds" {
 			return
 		}
-		keybindsByPlugin, err := platform.GetKeybindsStore()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "[keyboard] SSE store update: failed to read keybinds: %v\n", err)
+		// Re-fetch keybinds from actuator
+		var storeResp struct {
+			Data map[string]map[string]string `json:"data"`
+		}
+		if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+			fmt.Fprintf(os.Stderr, "[keyboard] store update: failed to read keybinds: %v\n", err)
 			return
 		}
 		mu.Lock()
-		state.KeybindsByPlugin = keybindsByPlugin
+		state.KeybindsByPlugin = storeResp.Data
 		state.rebuild()
 		mu.Unlock()
-		fmt.Fprintf(os.Stderr, "[keyboard] SSE: rebuilt keybinds from store update\n")
+		fmt.Fprintf(os.Stderr, "[keyboard] rebuilt keybinds from store update\n")
+	})
 
-	case "_platform.keyboard.layout_changed":
-		fmt.Fprintf(os.Stderr, "[keyboard] SSE: layout changed — re-pushing layout_characters\n")
-		loadAndPushLayoutCharacters(platform)
-	}
-}
+	plugin.On("_platform.keyboard.layout_changed", func(params json.RawMessage) {
+		fmt.Fprintf(os.Stderr, "[keyboard] layout changed — re-pushing layout_characters\n")
+		loadAndPushLayoutCharacters(plugin)
+	})
 
-func main() {
-	platform = shared.NewPlatformClient()
-	loadAndPushKeyNames(platform)
-	loadAndPushLayoutCharacters(platform)
+	// Register handlers (actuator→plugin requests)
+	plugin.Handle("build_registry", rpcHandler(handleBuildRegistry))
+	plugin.Handle("render_settings", rpcHandler(handleRenderSettings))
+	plugin.Handle("start_remap", rpcHandler(handleStartRemap))
+	plugin.Handle("remap", rpcHandler(handleRemap))
+	plugin.Handle("cancel_remap", rpcHandler(handleCancelRemap))
+	plugin.Handle("reset", rpcHandler(handleReset))
+	plugin.Handle("reset_all", rpcHandler(handleResetAll))
+	plugin.Handle("start_capture", rpcHandler(handleStartCapture))
+	plugin.Handle("stop_capture", rpcHandler(handleStopCapture))
+	plugin.Handle("delete_key_name", rpcHandler(handleDeleteKeyName))
+	plugin.Handle("start_edit_key", rpcHandler(handleStartEditKey))
+	plugin.Handle("cancel_edit_key", rpcHandler(handleCancelEditKey))
+	plugin.Handle("edit_key_keydown", rpcHandler(handleEditKeyKeydown))
+	plugin.Handle("parse_key_event", rpcHandler(handleParseKeyEvent))
+	plugin.Handle("remap_keydown", rpcHandler(handleRemapKeydown))
 
-	// Subscribe to platform events via SSE (replaces on-store-updated and on-layout-changed hooks)
-	sub := platform.SubscribeEvents(
-		[]string{"_platform.store.updated", "_platform.keyboard.layout_changed"},
-		handleEvent,
-	)
-	defer sub.Close()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", shared.HealthHandler())
-	mux.HandleFunc("POST /hooks/build-registry", hookBuildRegistry)
-	mux.HandleFunc("POST /hooks/render-settings", hookRenderSettings)
-	mux.HandleFunc("POST /hooks/start-remap", hookStartRemap)
-	mux.HandleFunc("POST /hooks/remap", hookRemap)
-	mux.HandleFunc("POST /hooks/cancel-remap", hookCancelRemap)
-	mux.HandleFunc("POST /hooks/reset", hookReset)
-	mux.HandleFunc("POST /hooks/reset-all", hookResetAll)
-	mux.HandleFunc("POST /hooks/start-capture", hookStartCapture)
-	mux.HandleFunc("POST /hooks/stop-capture", hookStopCapture)
-	mux.HandleFunc("POST /hooks/delete-key-name", hookDeleteKeyName)
-	mux.HandleFunc("POST /hooks/start-edit-key", hookStartEditKey)
-	mux.HandleFunc("POST /hooks/cancel-edit-key", hookCancelEditKey)
-	mux.HandleFunc("POST /hooks/edit-key-keydown", hookEditKeyKeydown)
-	mux.HandleFunc("POST /hooks/parse-key-event", hookParseKeyEvent)
-	mux.HandleFunc("POST /hooks/remap-keydown", hookRemapKeydown)
-
-	shared.RunPlugin(mux)
+	// Run the message loop (blocks until stdin closes or SIGTERM)
+	plugin.Run()
 }
 
 // Ensure fmt is used (for any debug logging)

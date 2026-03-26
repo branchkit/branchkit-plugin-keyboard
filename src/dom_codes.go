@@ -1,10 +1,7 @@
 package main
 
 import (
-	"net/http"
 	"strings"
-
-	"branchkit.local/shared"
 )
 
 // domCodeMap maps DOM KeyboardEvent.code values to BranchKit key names.
@@ -146,13 +143,7 @@ func parseDOMKeyEvent(evt DOMKeyEvent) ParsedKeyEvent {
 	}
 }
 
-// hookParseKeyEvent exposes key event parsing for cross-plugin use.
-func hookParseKeyEvent(w http.ResponseWriter, r *http.Request) {
-	var evt DOMKeyEvent
-	if err := shared.ReadJSON(r, &evt); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	result := parseDOMKeyEvent(evt)
-	shared.WriteJSON(w, result)
+// handleParseKeyEvent exposes key event parsing for cross-plugin use.
+func handleParseKeyEvent(evt *DOMKeyEvent) (any, error) {
+	return parseDOMKeyEvent(*evt), nil
 }
