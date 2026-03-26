@@ -882,10 +882,47 @@ func loadAndPushLayoutCharacters(p *shared.PlatformClient) {
 		len(chars), layout.LayoutID)
 }
 
+func handleEvent(msg shared.PluginEventMessage) {
+	switch msg.EventType {
+	case "_platform.store.updated":
+		var payload struct {
+			Store string `json:"store"`
+		}
+		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+			return
+		}
+		if payload.Store != "keybinds" {
+			return
+		}
+		keybindsByPlugin, err := platform.GetKeybindsStore()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[keyboard] SSE store update: failed to read keybinds: %v\n", err)
+			return
+		}
+		mu.Lock()
+		state.KeybindsByPlugin = keybindsByPlugin
+		state.rebuild()
+		mu.Unlock()
+		fmt.Fprintf(os.Stderr, "[keyboard] SSE: rebuilt keybinds from store update\n")
+
+	case "_platform.keyboard.layout_changed":
+		fmt.Fprintf(os.Stderr, "[keyboard] SSE: layout changed — re-pushing layout_characters\n")
+		loadAndPushLayoutCharacters(platform)
+	}
+}
+
 func main() {
 	platform = shared.NewPlatformClient()
 	loadAndPushKeyNames(platform)
 	loadAndPushLayoutCharacters(platform)
+
+	// Subscribe to platform events via SSE (replaces on-store-updated and on-layout-changed hooks)
+	sub := platform.SubscribeEvents(
+		[]string{"_platform.store.updated", "_platform.keyboard.layout_changed"},
+		handleEvent,
+	)
+	defer sub.Close()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", shared.HealthHandler())
 	mux.HandleFunc("POST /hooks/build-registry", hookBuildRegistry)
