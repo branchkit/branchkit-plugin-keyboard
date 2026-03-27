@@ -8,8 +8,8 @@
   "provides": {
     "stores": ["keybinds", "key_names", "layout_characters"],
     "store_schemas": {
-      "keybinds": { "merge": "keyed", "content_type": "keybind_registry" },
-      "key_names": { "merge": "authoritative", "content_type": "key_names" },
+      "keybinds": { "merge": "keyed" },
+      "key_names": { "merge": "authoritative" },
       "layout_characters": { "merge": "authoritative" }
     }
   },

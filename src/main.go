@@ -759,6 +759,15 @@ func loadAndPushKeyNames(p *shared.Plugin) {
 		fmt.Fprintf(os.Stderr, "[keyboard] Failed to push key_names store: %v\n", err)
 		return
 	}
+
+	// Set the platform key name cache directly (replaces content_type side effect)
+	namesBody := struct {
+		Names map[string]uint16 `json:"names"`
+	}{Names: merged}
+	if err := p.Call("key_names.set", namesBody, nil); err != nil {
+		fmt.Fprintf(os.Stderr, "[keyboard] Failed to set key_names cache: %v\n", err)
+	}
+
 	fmt.Fprintf(os.Stderr, "[keyboard] Pushed %d key names to store (%d defaults + %d overrides)\n",
 		len(merged), len(defaults), len(overrides))
 }
@@ -845,8 +854,16 @@ func main() {
 		}
 		mu.Lock()
 		state.KeybindsByPlugin = storeResp.Data
-		state.rebuild()
+		snapshot := state.rebuild()
 		mu.Unlock()
+
+		// Register keybinds with the platform (replaces content_type side effect)
+		regBody := struct {
+			Snapshot any `json:"snapshot"`
+		}{Snapshot: snapshot}
+		if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
+			fmt.Fprintf(os.Stderr, "[keyboard] keybinds.register failed: %v\n", err)
+		}
 		fmt.Fprintf(os.Stderr, "[keyboard] rebuilt keybinds from store update\n")
 	})
 
