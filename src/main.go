@@ -833,6 +833,31 @@ func main() {
 	loadAndPushKeyNames(plugin)
 	loadAndPushLayoutCharacters(plugin)
 
+	// Initial keybind registration — read store, build snapshot, register with platform
+	{
+		var storeResp struct {
+			Data map[string]map[string]string `json:"data"`
+		}
+		if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+			fmt.Fprintf(os.Stderr, "[keyboard] failed to read keybinds store: %v\n", err)
+		} else {
+			mu.Lock()
+			state.KeybindsByPlugin = storeResp.Data
+			state.OverridesTomlPath = filepath.Join(os.Getenv("BRANCHKIT_APP_SUPPORT"), "keybinds.toml")
+			snapshot := state.rebuild()
+			mu.Unlock()
+
+			regBody := struct {
+				Snapshot any `json:"snapshot"`
+			}{Snapshot: snapshot}
+			if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
+				fmt.Fprintf(os.Stderr, "[keyboard] keybinds.register failed: %v\n", err)
+			} else {
+				fmt.Fprintf(os.Stderr, "[keyboard] Initial keybind registration complete\n")
+			}
+		}
+	}
+
 	// Subscribe to events (actuator→plugin notifications)
 	plugin.On("_platform.store.updated", func(params json.RawMessage) {
 		var payload struct {
