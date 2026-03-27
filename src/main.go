@@ -518,7 +518,7 @@ func handleRenderSettings(req *RenderSettingsRequest) (any, error) {
 		mu.Unlock()
 	}
 
-	return shared.SettingsResponse{HTML: html}, nil
+	return shared.RenderSettingsResponse{HTML: html}, nil
 }
 
 func handleStartRemap(req *StartRemapRequest) (any, error) {
