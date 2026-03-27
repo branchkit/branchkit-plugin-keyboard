@@ -20,7 +20,7 @@
       {"pattern": "_platform.keyboard.layout_changed"}
     ]
   },
-  "hooks": {
+  "implements": {
     "settings_tabs": [{"label": "Keybinds", "key": "keybinds"}, {"label": "Keys", "key": "keys"}],
     "render_settings": true
   }
