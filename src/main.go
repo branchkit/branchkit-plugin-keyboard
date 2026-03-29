@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"branchkit.local/shared"
+	"github.com/branchkit/plugin-sdk-go"
 )
 
 // --- Key combo types ---
