@@ -484,6 +484,193 @@ func rpcHandler[Req any](fn func(*Req) (any, error)) shared.HandlerFunc {
 	}
 }
 
+// --- on_action: input simulation via native API ---
+
+// OnActionRequest is the request for plugin-dispatched action types.
+// Action is the full dotted name (e.g., "input.key_by_name").
+// Params contains the structured action parameters.
+type OnActionRequest struct {
+	Action         string                 `json:"action"`
+	Params         map[string]interface{} `json:"params,omitempty"`
+	ActiveApp      *string                `json:"active_app,omitempty"`
+	ActiveWindowID *string                `json:"active_window_id,omitempty"`
+}
+
+type OnActionResponse struct {
+	Result string `json:"result"`
+}
+
+func handleOnAction(req *OnActionRequest) (any, error) {
+	// Strip the "input." prefix to get the sub-action
+	subAction := req.Action
+	if idx := strings.Index(req.Action, "."); idx >= 0 {
+		subAction = req.Action[idx+1:]
+	}
+
+	p := req.Params
+	var err error
+
+	switch subAction {
+	case "type":
+		text, _ := p["text"].(string)
+		if text == "" {
+			return OnActionResponse{Result: "handled"}, nil
+		}
+		err = plugin.Call("input.type_text", map[string]interface{}{"text": text}, nil)
+
+	case "key_by_name":
+		name, _ := p["name"].(string)
+		modifiers := toStringSlice(p["modifiers"])
+		strategy, _ := p["strategy"].(string)
+		if strategy == "text" && len(modifiers) == 0 {
+			// "text" strategy: paste text equivalent instead of key event
+			if textEquiv := keyTextEquivalent(name); textEquiv != "" {
+				err = plugin.Call("input.type_text", map[string]interface{}{"text": textEquiv}, nil)
+				break
+			}
+			// No text equivalent — fall through to key_event
+		}
+		params := map[string]interface{}{"name": name}
+		if len(modifiers) > 0 {
+			params["modifiers"] = modifiers
+		}
+		err = plugin.Call("input.press_key", params, nil)
+
+	case "key":
+		code := toInt(p["code"])
+		err = plugin.Call("input.press_key", map[string]interface{}{"code": code}, nil)
+
+	case "shortcut_by_name":
+		name, _ := p["name"].(string)
+		modifiers := toStringSlice(p["modifiers"])
+		params := map[string]interface{}{"name": name}
+		if len(modifiers) > 0 {
+			params["modifiers"] = modifiers
+		}
+		err = plugin.Call("input.press_key", params, nil)
+
+	case "shortcut":
+		code := toInt(p["code"])
+		modifiers := toStringSlice(p["modifiers"])
+		params := map[string]interface{}{"code": code}
+		if len(modifiers) > 0 {
+			params["modifiers"] = modifiers
+		}
+		err = plugin.Call("input.press_key", params, nil)
+
+	case "raw_key":
+		code := toInt(p["code"])
+		down, _ := p["down"].(bool)
+		direction := "click"
+		if d, ok := p["direction"].(string); ok {
+			direction = d
+		} else if down {
+			direction = "press"
+		} else if _, hasDown := p["down"]; hasDown {
+			direction = "release"
+		}
+		err = plugin.Call("input.raw_key", map[string]interface{}{"code": code, "direction": direction}, nil)
+
+	case "click":
+		button, _ := p["button"].(string)
+		if button == "" {
+			button = "left"
+		}
+		err = plugin.Call("input.click", map[string]interface{}{"button": button}, nil)
+
+	case "scroll":
+		direction, _ := p["direction"].(string)
+		params := map[string]interface{}{"direction": direction}
+		if amt, ok := p["amount"]; ok {
+			params["amount"] = amt
+		}
+		err = plugin.Call("input.scroll", params, nil)
+
+	case "move":
+		x := toInt(p["x"])
+		y := toInt(p["y"])
+		err = plugin.Call("native.warp_cursor", map[string]interface{}{"x": x, "y": y}, nil)
+
+	case "mouse_down":
+		button, _ := p["button"].(string)
+		if button == "" {
+			button = "left"
+		}
+		err = plugin.Call("input.mouse_button", map[string]interface{}{"button": button, "direction": "press"}, nil)
+
+	case "mouse_up":
+		button, _ := p["button"].(string)
+		if button == "" {
+			button = "left"
+		}
+		err = plugin.Call("input.mouse_button", map[string]interface{}{"button": button, "direction": "release"}, nil)
+
+	case "clipboard":
+		action, _ := p["action"].(string)
+		params := map[string]interface{}{"action": action}
+		if text, ok := p["text"].(string); ok && text != "" {
+			params["text"] = text
+		}
+		err = plugin.Call("input.clipboard_action", params, nil)
+
+	default:
+		fmt.Fprintf(os.Stderr, "[keyboard] on_action: unknown sub-action '%s'\n", subAction)
+		return OnActionResponse{Result: "pass"}, nil
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[keyboard] on_action %s error: %v\n", subAction, err)
+	}
+	return OnActionResponse{Result: "handled"}, nil
+}
+
+// keyTextEquivalent returns the text equivalent of a key name for the "text" strategy.
+func keyTextEquivalent(name string) string {
+	switch strings.ToLower(name) {
+	case "return", "enter":
+		return "\n"
+	case "tab":
+		return "\t"
+	case "space":
+		return " "
+	default:
+		return ""
+	}
+}
+
+// toStringSlice extracts a []string from an interface{} that may be []interface{}.
+func toStringSlice(v interface{}) []string {
+	if v == nil {
+		return nil
+	}
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	result := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if s, ok := item.(string); ok {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// toInt extracts an int from an interface{} that may be float64 (JSON number).
+func toInt(v interface{}) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case json.Number:
+		i, _ := n.Int64()
+		return int(i)
+	default:
+		return 0
+	}
+}
+
 func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	// Read keybinds from the shared store via RPC
 	var storeResp struct {
@@ -913,6 +1100,7 @@ func main() {
 	plugin.Handle("edit_key_keydown", rpcHandler(handleEditKeyKeydown))
 	plugin.Handle("parse_key_event", rpcHandler(handleParseKeyEvent))
 	plugin.Handle("remap_keydown", rpcHandler(handleRemapKeydown))
+	plugin.Handle("on_action", rpcHandler(handleOnAction))
 
 	// Run the message loop (blocks until stdin closes or SIGTERM)
 	plugin.Run()

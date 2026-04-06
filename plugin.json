@@ -3,8 +3,92 @@
   "name": "Keyboard",
   "capabilities": ["input"],
   "version": "1.0.0",
-  "description": "Global hotkey capture and keybind registry.",
+  "description": "Global hotkey capture, keybind registry, and input simulation.",
   "author": "BranchKit",
+  "action_prefix": "input",
+  "action_types": {
+    "type": {
+      "label": "Type Text",
+      "fields": [
+        { "key": "text", "label": "Text", "field_type": "string", "required": true }
+      ]
+    },
+    "key_by_name": {
+      "label": "Press Key",
+      "fields": [
+        { "key": "name", "label": "Key Name", "placeholder": "return", "field_type": "string", "required": true },
+        { "key": "modifiers", "label": "Modifiers", "field_type": "string[]", "required": false },
+        { "key": "strategy", "label": "Strategy", "placeholder": "key_event", "field_type": "string", "required": false }
+      ]
+    },
+    "key": {
+      "label": "Press Key (Raw Keycode)",
+      "fields": [
+        { "key": "code", "label": "Keycode", "field_type": "number", "required": true }
+      ]
+    },
+    "shortcut_by_name": {
+      "label": "Keyboard Shortcut",
+      "fields": [
+        { "key": "name", "label": "Key Name", "placeholder": "s", "field_type": "string", "required": true },
+        { "key": "modifiers", "label": "Modifiers", "placeholder": "cmd", "field_type": "string[]", "required": true },
+        { "key": "strategy", "label": "Strategy", "placeholder": "key_event", "field_type": "string", "required": false }
+      ]
+    },
+    "shortcut": {
+      "label": "Keyboard Shortcut (Raw Keycode)",
+      "fields": [
+        { "key": "code", "label": "Keycode", "field_type": "number", "required": true },
+        { "key": "modifiers", "label": "Modifiers", "field_type": "string[]", "required": true }
+      ]
+    },
+    "raw_key": {
+      "label": "Raw Key Event",
+      "fields": [
+        { "key": "code", "label": "Keycode", "field_type": "number", "required": true },
+        { "key": "direction", "label": "Direction", "placeholder": "click", "field_type": "string", "required": true }
+      ]
+    },
+    "click": {
+      "label": "Mouse Click",
+      "fields": [
+        { "key": "button", "label": "Button", "placeholder": "left", "field_type": "string", "required": false }
+      ]
+    },
+    "scroll": {
+      "label": "Scroll",
+      "fields": [
+        { "key": "direction", "label": "Direction", "field_type": "string", "required": true },
+        { "key": "amount", "label": "Amount", "field_type": "number", "required": false }
+      ]
+    },
+    "move": {
+      "label": "Move Cursor",
+      "fields": [
+        { "key": "x", "label": "X", "field_type": "number", "required": true },
+        { "key": "y", "label": "Y", "field_type": "number", "required": true }
+      ]
+    },
+    "mouse_down": {
+      "label": "Mouse Button Down",
+      "fields": [
+        { "key": "button", "label": "Button", "placeholder": "left", "field_type": "string", "required": false }
+      ]
+    },
+    "mouse_up": {
+      "label": "Mouse Button Up",
+      "fields": [
+        { "key": "button", "label": "Button", "placeholder": "left", "field_type": "string", "required": false }
+      ]
+    },
+    "clipboard": {
+      "label": "Clipboard",
+      "fields": [
+        { "key": "action", "label": "Action", "placeholder": "copy", "field_type": "string", "required": true },
+        { "key": "text", "label": "Text", "field_type": "string", "required": false }
+      ]
+    }
+  },
   "provides": {
     "stores": ["keybinds", "key_names", "layout_characters"],
     "store_schemas": {
@@ -22,6 +106,7 @@
   },
   "implements": {
     "settings_tabs": [{"label": "Keybinds", "key": "keybinds"}, {"label": "Keys", "key": "keys"}],
-    "render_settings": true
+    "render_settings": true,
+    "on_action": true
   }
 }
