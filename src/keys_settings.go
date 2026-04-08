@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	shared "github.com/branchkit/plugin-sdk-go"
 )
 
 type keyNameEntry struct {
@@ -207,7 +209,7 @@ type deleteKeyNameRequest struct {
 func handleDeleteKeyName(req *deleteKeyNameRequest) (any, error) {
 	err := deleteKeyNameOverride(req.Name)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] delete key name error: %v\n", err)
+		shared.Logf("keyboard", "delete key name error: %v", err)
 		mu.Lock()
 		state.KeysError = fmt.Sprintf("Failed to delete key name: %v", err)
 		mu.Unlock()

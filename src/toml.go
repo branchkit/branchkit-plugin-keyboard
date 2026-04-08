@@ -5,6 +5,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	shared "github.com/branchkit/plugin-sdk-go"
 )
 
 // Minimal TOML parser for the keybinds.toml file format:
@@ -91,7 +93,7 @@ func saveOverridesToTOML(overrides map[string]string, path string) {
 	}
 
 	if err := os.WriteFile(path, []byte(b.String()), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "[KEYBIND] failed to write keybinds.toml: %v\n", err)
+		shared.Logf("keyboard", "failed to write keybinds.toml: %v", err)
 	}
 }
 

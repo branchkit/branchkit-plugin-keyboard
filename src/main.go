@@ -614,12 +614,12 @@ func handleOnAction(req *OnActionRequest) (any, error) {
 		err = plugin.Call("input.clipboard_action", params, nil)
 
 	default:
-		fmt.Fprintf(os.Stderr, "[keyboard] on_action: unknown sub-action '%s'\n", subAction)
+		shared.Logf("keyboard", "on_action: unknown sub-action '%s'", subAction)
 		return OnActionResponse{Result: "pass"}, nil
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] on_action %s error: %v\n", subAction, err)
+		shared.Logf("keyboard", "on_action %s error: %v", subAction, err)
 	}
 	return OnActionResponse{Result: "handled"}, nil
 }
@@ -678,7 +678,7 @@ func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	}
 	keybindsByPlugin := make(map[string]map[string]string)
 	if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] failed to read store: %v\n", err)
+		shared.Logf("keyboard", "failed to read store: %v", err)
 	} else {
 		keybindsByPlugin = storeResp.Data
 	}
@@ -897,12 +897,12 @@ func loadAndPushKeyNames(p *shared.Plugin) {
 	dataPath := filepath.Join(pluginDir, "data", "key_names_macos.json")
 	data, err := os.ReadFile(dataPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] Failed to read %s: %v\n", dataPath, err)
+		shared.Logf("keyboard", "Failed to read %s: %v", dataPath, err)
 		return
 	}
 	var defaults map[string]uint16
 	if err := json.Unmarshal(data, &defaults); err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] Failed to parse %s: %v\n", dataPath, err)
+		shared.Logf("keyboard", "Failed to parse %s: %v", dataPath, err)
 		return
 	}
 
@@ -913,7 +913,7 @@ func loadAndPushKeyNames(p *shared.Plugin) {
 		overridePath := filepath.Join(appSupport, "key_names.json")
 		if ovData, err := os.ReadFile(overridePath); err == nil {
 			if err := json.Unmarshal(ovData, &overrides); err != nil {
-				fmt.Fprintf(os.Stderr, "[keyboard] Failed to parse key name overrides: %v\n", err)
+				shared.Logf("keyboard", "Failed to parse key name overrides: %v", err)
 			}
 		}
 	}
@@ -943,7 +943,7 @@ func loadAndPushKeyNames(p *shared.Plugin) {
 		Data map[string]uint16  `json:"data"`
 	}{Name: "key_names", Data: merged}
 	if err := p.Call("store.push", body, nil); err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] Failed to push key_names store: %v\n", err)
+		shared.Logf("keyboard", "Failed to push key_names store: %v", err)
 		return
 	}
 
@@ -952,10 +952,10 @@ func loadAndPushKeyNames(p *shared.Plugin) {
 		Names map[string]uint16 `json:"names"`
 	}{Names: merged}
 	if err := p.Call("key_names.set", namesBody, nil); err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] Failed to set key_names cache: %v\n", err)
+		shared.Logf("keyboard", "Failed to set key_names cache: %v", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "[keyboard] Pushed %d key names to store (%d defaults + %d overrides)\n",
+	shared.Logf("keyboard", "Pushed %d key names to store (%d defaults + %d overrides)",
 		len(merged), len(defaults), len(overrides))
 }
 
@@ -984,7 +984,7 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 	}
 	var layout layoutResp
 	if err := p.Call("native.keyboard_layout", nil, &layout); err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] Failed to fetch keyboard layout: %v\n", err)
+		shared.Logf("keyboard", "Failed to fetch keyboard layout: %v", err)
 		return
 	}
 
@@ -1006,10 +1006,10 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 		Data map[string]string `json:"data"`
 	}{Name: "layout_characters", Data: chars}
 	if err := p.Call("store.push", body, nil); err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] Failed to push layout_characters store: %v\n", err)
+		shared.Logf("keyboard", "Failed to push layout_characters store: %v", err)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "[keyboard] Pushed %d layout characters to store (layout: %s)\n",
+	shared.Logf("keyboard", "Pushed %d layout characters to store (layout: %s)",
 		len(chars), layout.LayoutID)
 }
 
@@ -1026,7 +1026,7 @@ func main() {
 			Data map[string]map[string]string `json:"data"`
 		}
 		if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
-			fmt.Fprintf(os.Stderr, "[keyboard] failed to read keybinds store: %v\n", err)
+			shared.Logf("keyboard", "failed to read keybinds store: %v", err)
 		} else {
 			mu.Lock()
 			state.KeybindsByPlugin = storeResp.Data
@@ -1038,9 +1038,9 @@ func main() {
 				Snapshot any `json:"snapshot"`
 			}{Snapshot: snapshot}
 			if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
-				fmt.Fprintf(os.Stderr, "[keyboard] keybinds.register failed: %v\n", err)
+				shared.Logf("keyboard", "keybinds.register failed: %v", err)
 			} else {
-				fmt.Fprintf(os.Stderr, "[keyboard] Initial keybind registration complete\n")
+				shared.Logf("keyboard", "Initial keybind registration complete")
 			}
 		}
 	}
@@ -1061,7 +1061,7 @@ func main() {
 			Data map[string]map[string]string `json:"data"`
 		}
 		if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
-			fmt.Fprintf(os.Stderr, "[keyboard] store update: failed to read keybinds: %v\n", err)
+			shared.Logf("keyboard", "store update: failed to read keybinds: %v", err)
 			return
 		}
 		mu.Lock()
@@ -1074,13 +1074,13 @@ func main() {
 			Snapshot any `json:"snapshot"`
 		}{Snapshot: snapshot}
 		if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
-			fmt.Fprintf(os.Stderr, "[keyboard] keybinds.register failed: %v\n", err)
+			shared.Logf("keyboard", "keybinds.register failed: %v", err)
 		}
-		fmt.Fprintf(os.Stderr, "[keyboard] rebuilt keybinds from store update\n")
+		shared.Logf("keyboard", "rebuilt keybinds from store update")
 	})
 
 	plugin.On("_platform.keyboard.layout_changed", func(params json.RawMessage) {
-		fmt.Fprintf(os.Stderr, "[keyboard] layout changed — re-pushing layout_characters\n")
+		shared.Logf("keyboard", "layout changed — re-pushing layout_characters")
 		loadAndPushLayoutCharacters(plugin)
 	})
 
@@ -1105,6 +1105,3 @@ func main() {
 	// Run the message loop (blocks until stdin closes or SIGTERM)
 	plugin.Run()
 }
-
-// Ensure fmt is used (for any debug logging)
-var _ = fmt.Sprintf
