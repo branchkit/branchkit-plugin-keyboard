@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -11,11 +9,6 @@ import (
 	"sort"
 	"strings"
 )
-
-//go:embed templates/keys.html
-var keysTemplateHTML string
-
-var keysTemplate = template.Must(template.New("keys").Parse(keysTemplateHTML))
 
 type keyNameEntry struct {
 	Name    string `json:"name"`
@@ -127,12 +120,7 @@ func renderKeysSettings(search string) string {
 		LayoutName:     layoutName,
 	}
 
-	var buf bytes.Buffer
-	if err := keysTemplate.Execute(&buf, data); err != nil {
-		fmt.Fprintf(os.Stderr, "[keyboard] keys template error: %v\n", err)
-		return ""
-	}
-	return buf.String()
+	return renderTempl(KeysSettings(data))
 }
 
 // setKeyNameOverride adds or updates a user override, re-merges, saves, and re-pushes the store.

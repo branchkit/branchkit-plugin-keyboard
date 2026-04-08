@@ -2,15 +2,16 @@ package main
 
 import (
 	"bytes"
-	_ "embed"
+	"context"
 	"encoding/json"
+	"fmt"
 	"html/template"
+	"os"
 	"sort"
 	"strings"
-)
 
-//go:embed templates/settings.html
-var keybindsTemplateHTML string
+	templ "github.com/a-h/templ"
+)
 
 type keybindRowView struct {
 	ComboDisplay string
@@ -28,10 +29,6 @@ type keybindGroupView struct {
 	SourceName string
 	Rows       []keybindRowView
 }
-
-var keybindsTemplate = template.Must(template.New("keybinds").Funcs(template.FuncMap{
-	"eq": func(a, b string) bool { return a == b },
-}).Parse(keybindsTemplateHTML))
 
 
 func renderSettings(ps *PluginState, search string) string {
@@ -153,21 +150,13 @@ func renderSettings(ps *PluginState, search string) string {
 		return groups[i].SourceName < groups[j].SourceName
 	})
 
-	data := struct {
-		Groups         []keybindGroupView
-		HasOverrides   bool
-		RemappingCombo string
-	}{
+	data := KeybindSettingsData{
 		Groups:         groups,
 		HasOverrides:   hasOverrides,
 		RemappingCombo: ps.RemappingCombo,
 	}
 
-	var buf bytes.Buffer
-	if err := keybindsTemplate.Execute(&buf, data); err != nil {
-		return ""
-	}
-	return buf.String()
+	return renderTempl(KeybindSettings(data))
 }
 
 func ifStr(cond bool, a, b string) string {
@@ -175,4 +164,13 @@ func ifStr(cond bool, a, b string) string {
 		return a
 	}
 	return b
+}
+
+func renderTempl(c templ.Component) string {
+	var buf bytes.Buffer
+	if err := c.Render(context.Background(), &buf); err != nil {
+		fmt.Fprintf(os.Stderr, "[keyboard] templ render error: %v\n", err)
+		return ""
+	}
+	return buf.String()
 }

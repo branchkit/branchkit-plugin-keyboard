@@ -1,0 +1,70 @@
+package main
+
+import "fmt"
+
+type KeybindSettingsData struct {
+	Groups         []keybindGroupView
+	HasOverrides   bool
+	RemappingCombo string
+}
+
+templ KeybindSettings(data KeybindSettingsData) {
+	<div id="settings-table-container" class="settings-table">
+		<div class="table-header">
+			<div>Keybind</div>
+			<div>Action</div>
+			<div>Source</div>
+			<div style="text-align: right;">
+				if data.HasOverrides {
+					<button style="font-size: 11px; padding: 2px 8px;" data-on:click="@post('/v1/plugins/keyboard/hooks/reset-all')">Reset All</button>
+				}
+			</div>
+		</div>
+		for _, group := range data.Groups {
+			<div style="padding: 8px 20px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;">
+				{ group.SourceName }
+			</div>
+			for _, row := range group.Rows {
+				<div class={ "settings-row", templ.KV("modified", row.IsOverride) }>
+					<div class="label" style="display: flex; align-items: center; gap: 6px;">
+						if data.RemappingCombo == row.ComboKey {
+							<input
+								type="text"
+								readonly
+								placeholder="Press new key combo..."
+								style="flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;"
+								id="remap-input"
+								data-init="document.getElementById('remap-input').focus()"
+								data-on:keydown={ fmt.Sprintf("evt.preventDefault(); evt.stopPropagation(); @post('/v1/plugins/keyboard/hooks/remap-keydown', {payload: {code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey, old_combo: %s, is_hold: %s}})", string(row.ComboKeyJSON), string(row.IsHoldJSON)) }
+								data-on:blur__debounce.200ms="@post('/v1/plugins/keyboard/hooks/cancel-remap')"
+							/>
+							<button class="icon-btn" title="Cancel" data-on:click="@post('/v1/plugins/keyboard/hooks/cancel-remap')">&#10005;</button>
+						} else {
+							<span style="font-family: 'SF Mono', monospace;">{ row.ComboDisplay }</span>
+							<button
+								class="icon-btn edit-btn"
+								title="Remap keybind"
+								data-on:click={ fmt.Sprintf("@post('/v1/plugins/keyboard/hooks/start-remap', {payload: {combo: %s}})", string(row.ComboKeyJSON)) }
+							>&#9998;</button>
+							if row.IsOverride {
+								<button
+									class="icon-btn"
+									title="Reset to default"
+									data-on:click={ fmt.Sprintf("@post('/v1/plugins/keyboard/hooks/reset', {payload: {combo_key: %s, is_hold: %s}})", string(row.ComboKeyJSON), string(row.IsHoldJSON)) }
+								>&#x21ba;</button>
+							}
+						}
+					</div>
+					<div class="value">{ row.ActionLabel }</div>
+					<div><span class={ "badge", row.BadgeClass }>{ row.SourceLabel }</span></div>
+				</div>
+			}
+		}
+	</div>
+	<style>
+		@keyframes pulse {
+			0%, 100% { border-color: var(--accent); }
+			50% { border-color: rgba(0, 122, 255, 0.3); }
+		}
+	</style>
+}
