@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	templ "github.com/a-h/templ"
+	"github.com/a-h/templ"
 )
 
 type keybindRowView struct {
