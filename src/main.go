@@ -481,12 +481,21 @@ func logErr(action string, err error) {
 	}
 }
 
-type typeParams struct {
-	Text string `json:"text"`
+// Param structs (TypeParams, KeyByNameParams, …) live in actions_gen.go,
+// generated from plugin.json's action_types block. Edit that and re-run
+// `just gen-plugins` — do not hand-declare these structs here.
+
+// buttonOrLeft returns the resolved button name, defaulting to "left"
+// when the pointer is nil or empty.
+func buttonOrLeft(b *ClickButton) string {
+	if b == nil || *b == "" {
+		return "left"
+	}
+	return string(*b)
 }
 
 func handleInputType(req *shared.OnActionRequest) (any, error) {
-	var p typeParams
+	var p TypeParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
@@ -497,19 +506,13 @@ func handleInputType(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-type keyByNameParams struct {
-	Name      string   `json:"name"`
-	Modifiers []string `json:"modifiers"`
-	Strategy  string   `json:"strategy"`
-}
-
 func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
-	var p keyByNameParams
+	var p KeyByNameParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
 	// "text" strategy: paste text equivalent instead of key event (when no modifiers)
-	if p.Strategy == "text" && len(p.Modifiers) == 0 {
+	if p.Strategy != nil && *p.Strategy == KeyByNameStrategyText && len(p.Modifiers) == 0 {
 		if textEquiv := keyTextEquivalent(p.Name); textEquiv != "" {
 			logErr("input.key_by_name", plugin.Call("input.type_text", map[string]any{"text": textEquiv}, nil))
 			return nil, nil
@@ -523,12 +526,8 @@ func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-type keyParams struct {
-	Code int `json:"code"`
-}
-
 func handleInputKey(req *shared.OnActionRequest) (any, error) {
-	var p keyParams
+	var p KeyParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
@@ -536,13 +535,8 @@ func handleInputKey(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-type shortcutByNameParams struct {
-	Name      string   `json:"name"`
-	Modifiers []string `json:"modifiers"`
-}
-
 func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
-	var p shortcutByNameParams
+	var p ShortcutByNameParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
@@ -554,13 +548,8 @@ func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-type shortcutParams struct {
-	Code      int      `json:"code"`
-	Modifiers []string `json:"modifiers"`
-}
-
 func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
-	var p shortcutParams
+	var p ShortcutParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
@@ -572,22 +561,15 @@ func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-// rawKeyParams uses *bool for Down so we can distinguish absent from false.
-type rawKeyParams struct {
-	Code      int     `json:"code"`
-	Direction *string `json:"direction"`
-	Down      *bool   `json:"down"`
-}
-
 func handleInputRawKey(req *shared.OnActionRequest) (any, error) {
-	var p rawKeyParams
+	var p RawKeyParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
 	direction := "click"
 	switch {
 	case p.Direction != nil:
-		direction = *p.Direction
+		direction = string(*p.Direction)
 	case p.Down != nil && *p.Down:
 		direction = "press"
 	case p.Down != nil:
@@ -597,33 +579,21 @@ func handleInputRawKey(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-type clickParams struct {
-	Button string `json:"button"`
-}
-
 func handleInputClick(req *shared.OnActionRequest) (any, error) {
-	var p clickParams
+	var p ClickParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
-	if p.Button == "" {
-		p.Button = "left"
-	}
-	logErr("input.click", plugin.Call("input.click", map[string]any{"button": p.Button}, nil))
+	logErr("input.click", plugin.Call("input.click", map[string]any{"button": buttonOrLeft(p.Button)}, nil))
 	return nil, nil
 }
 
-type scrollParams struct {
-	Direction string         `json:"direction"`
-	Amount    *int           `json:"amount"`
-}
-
 func handleInputScroll(req *shared.OnActionRequest) (any, error) {
-	var p scrollParams
+	var p ScrollParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
-	params := map[string]any{"direction": p.Direction}
+	params := map[string]any{"direction": string(p.Direction)}
 	if p.Amount != nil {
 		params["amount"] = *p.Amount
 	}
@@ -631,13 +601,8 @@ func handleInputScroll(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-type moveParams struct {
-	X int `json:"x"`
-	Y int `json:"y"`
-}
-
 func handleInputMove(req *shared.OnActionRequest) (any, error) {
-	var p moveParams
+	var p MoveParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
@@ -646,42 +611,39 @@ func handleInputMove(req *shared.OnActionRequest) (any, error) {
 }
 
 func handleInputMouseDown(req *shared.OnActionRequest) (any, error) {
-	var p clickParams
+	var p MouseDownParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
-	if p.Button == "" {
-		p.Button = "left"
+	button := "left"
+	if p.Button != nil && *p.Button != "" {
+		button = string(*p.Button)
 	}
-	logErr("input.mouse_down", plugin.Call("input.mouse_button", map[string]any{"button": p.Button, "direction": "press"}, nil))
+	logErr("input.mouse_down", plugin.Call("input.mouse_button", map[string]any{"button": button, "direction": "press"}, nil))
 	return nil, nil
 }
 
 func handleInputMouseUp(req *shared.OnActionRequest) (any, error) {
-	var p clickParams
+	var p MouseUpParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
-	if p.Button == "" {
-		p.Button = "left"
+	button := "left"
+	if p.Button != nil && *p.Button != "" {
+		button = string(*p.Button)
 	}
-	logErr("input.mouse_up", plugin.Call("input.mouse_button", map[string]any{"button": p.Button, "direction": "release"}, nil))
+	logErr("input.mouse_up", plugin.Call("input.mouse_button", map[string]any{"button": button, "direction": "release"}, nil))
 	return nil, nil
 }
 
-type clipboardParams struct {
-	Action string `json:"action"`
-	Text   string `json:"text"`
-}
-
 func handleInputClipboard(req *shared.OnActionRequest) (any, error) {
-	var p clipboardParams
+	var p ClipboardParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
-	params := map[string]any{"action": p.Action}
-	if p.Text != "" {
-		params["text"] = p.Text
+	params := map[string]any{"action": string(p.Action)}
+	if p.Text != nil && *p.Text != "" {
+		params["text"] = *p.Text
 	}
 	logErr("input.clipboard", plugin.Call("input.clipboard_action", params, nil))
 	return nil, nil
