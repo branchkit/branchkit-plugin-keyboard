@@ -470,158 +470,221 @@ var (
 
 var plugin *shared.Plugin
 
-// rpcHandler creates a HandlerFunc that unmarshals params into the given request type,
-// calls the handler, and returns the result.
-func rpcHandler[Req any](fn func(*Req) (any, error)) shared.HandlerFunc {
-	return func(params json.RawMessage) (any, error) {
-		var req Req
-		if len(params) > 0 {
-			if err := json.Unmarshal(params, &req); err != nil {
-				return nil, fmt.Errorf("bad params: %w", err)
-			}
-		}
-		return fn(&req)
-	}
-}
-
 // --- on_action: input simulation via native API ---
+//
+// Each input.* action gets its own typed handler. The SDK demuxes by
+// req.Action via plugin.HandleAction(...) — see main().
 
-// OnActionRequest is the request for plugin-dispatched action types.
-// Action is the full dotted name (e.g., "input.key_by_name").
-// Params contains the structured action parameters.
-type OnActionRequest struct {
-	Action         string                 `json:"action"`
-	Params         map[string]interface{} `json:"params,omitempty"`
-	ActiveApp      *string                `json:"active_app,omitempty"`
-	ActiveWindowID *string                `json:"active_window_id,omitempty"`
-}
-
-type OnActionResponse struct {
-	Result string `json:"result"`
-}
-
-func handleOnAction(req *OnActionRequest) (any, error) {
-	// Strip the "input." prefix to get the sub-action
-	subAction := req.Action
-	if idx := strings.Index(req.Action, "."); idx >= 0 {
-		subAction = req.Action[idx+1:]
-	}
-
-	p := req.Params
-	var err error
-
-	switch subAction {
-	case "type":
-		text, _ := p["text"].(string)
-		if text == "" {
-			return OnActionResponse{Result: "handled"}, nil
-		}
-		err = plugin.Call("input.type_text", map[string]interface{}{"text": text}, nil)
-
-	case "key_by_name":
-		name, _ := p["name"].(string)
-		modifiers := toStringSlice(p["modifiers"])
-		strategy, _ := p["strategy"].(string)
-		if strategy == "text" && len(modifiers) == 0 {
-			// "text" strategy: paste text equivalent instead of key event
-			if textEquiv := keyTextEquivalent(name); textEquiv != "" {
-				err = plugin.Call("input.type_text", map[string]interface{}{"text": textEquiv}, nil)
-				break
-			}
-			// No text equivalent — fall through to key_event
-		}
-		params := map[string]interface{}{"name": name}
-		if len(modifiers) > 0 {
-			params["modifiers"] = modifiers
-		}
-		err = plugin.Call("input.press_key", params, nil)
-
-	case "key":
-		code := toInt(p["code"])
-		err = plugin.Call("input.press_key", map[string]interface{}{"code": code}, nil)
-
-	case "shortcut_by_name":
-		name, _ := p["name"].(string)
-		modifiers := toStringSlice(p["modifiers"])
-		params := map[string]interface{}{"name": name}
-		if len(modifiers) > 0 {
-			params["modifiers"] = modifiers
-		}
-		err = plugin.Call("input.press_key", params, nil)
-
-	case "shortcut":
-		code := toInt(p["code"])
-		modifiers := toStringSlice(p["modifiers"])
-		params := map[string]interface{}{"code": code}
-		if len(modifiers) > 0 {
-			params["modifiers"] = modifiers
-		}
-		err = plugin.Call("input.press_key", params, nil)
-
-	case "raw_key":
-		code := toInt(p["code"])
-		down, _ := p["down"].(bool)
-		direction := "click"
-		if d, ok := p["direction"].(string); ok {
-			direction = d
-		} else if down {
-			direction = "press"
-		} else if _, hasDown := p["down"]; hasDown {
-			direction = "release"
-		}
-		err = plugin.Call("input.raw_key", map[string]interface{}{"code": code, "direction": direction}, nil)
-
-	case "click":
-		button, _ := p["button"].(string)
-		if button == "" {
-			button = "left"
-		}
-		err = plugin.Call("input.click", map[string]interface{}{"button": button}, nil)
-
-	case "scroll":
-		direction, _ := p["direction"].(string)
-		params := map[string]interface{}{"direction": direction}
-		if amt, ok := p["amount"]; ok {
-			params["amount"] = amt
-		}
-		err = plugin.Call("input.scroll", params, nil)
-
-	case "move":
-		x := toInt(p["x"])
-		y := toInt(p["y"])
-		err = plugin.Call("native.warp_cursor", map[string]interface{}{"x": x, "y": y}, nil)
-
-	case "mouse_down":
-		button, _ := p["button"].(string)
-		if button == "" {
-			button = "left"
-		}
-		err = plugin.Call("input.mouse_button", map[string]interface{}{"button": button, "direction": "press"}, nil)
-
-	case "mouse_up":
-		button, _ := p["button"].(string)
-		if button == "" {
-			button = "left"
-		}
-		err = plugin.Call("input.mouse_button", map[string]interface{}{"button": button, "direction": "release"}, nil)
-
-	case "clipboard":
-		action, _ := p["action"].(string)
-		params := map[string]interface{}{"action": action}
-		if text, ok := p["text"].(string); ok && text != "" {
-			params["text"] = text
-		}
-		err = plugin.Call("input.clipboard_action", params, nil)
-
-	default:
-		shared.Logf("keyboard", "on_action: unknown sub-action '%s'", subAction)
-		return OnActionResponse{Result: "pass"}, nil
-	}
-
+func logErr(action string, err error) {
 	if err != nil {
-		shared.Logf("keyboard", "on_action %s error: %v", subAction, err)
+		shared.Logf("keyboard", "%s: %v", action, err)
 	}
-	return OnActionResponse{Result: "handled"}, nil
+}
+
+type typeParams struct {
+	Text string `json:"text"`
+}
+
+func handleInputType(req *shared.OnActionRequest) (any, error) {
+	var p typeParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	if p.Text == "" {
+		return nil, nil
+	}
+	logErr("input.type", plugin.Call("input.type_text", map[string]any{"text": p.Text}, nil))
+	return nil, nil
+}
+
+type keyByNameParams struct {
+	Name      string   `json:"name"`
+	Modifiers []string `json:"modifiers"`
+	Strategy  string   `json:"strategy"`
+}
+
+func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
+	var p keyByNameParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	// "text" strategy: paste text equivalent instead of key event (when no modifiers)
+	if p.Strategy == "text" && len(p.Modifiers) == 0 {
+		if textEquiv := keyTextEquivalent(p.Name); textEquiv != "" {
+			logErr("input.key_by_name", plugin.Call("input.type_text", map[string]any{"text": textEquiv}, nil))
+			return nil, nil
+		}
+	}
+	params := map[string]any{"name": p.Name}
+	if len(p.Modifiers) > 0 {
+		params["modifiers"] = p.Modifiers
+	}
+	logErr("input.key_by_name", plugin.Call("input.press_key", params, nil))
+	return nil, nil
+}
+
+type keyParams struct {
+	Code int `json:"code"`
+}
+
+func handleInputKey(req *shared.OnActionRequest) (any, error) {
+	var p keyParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	logErr("input.key", plugin.Call("input.press_key", map[string]any{"code": p.Code}, nil))
+	return nil, nil
+}
+
+type shortcutByNameParams struct {
+	Name      string   `json:"name"`
+	Modifiers []string `json:"modifiers"`
+}
+
+func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
+	var p shortcutByNameParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	params := map[string]any{"name": p.Name}
+	if len(p.Modifiers) > 0 {
+		params["modifiers"] = p.Modifiers
+	}
+	logErr("input.shortcut_by_name", plugin.Call("input.press_key", params, nil))
+	return nil, nil
+}
+
+type shortcutParams struct {
+	Code      int      `json:"code"`
+	Modifiers []string `json:"modifiers"`
+}
+
+func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
+	var p shortcutParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	params := map[string]any{"code": p.Code}
+	if len(p.Modifiers) > 0 {
+		params["modifiers"] = p.Modifiers
+	}
+	logErr("input.shortcut", plugin.Call("input.press_key", params, nil))
+	return nil, nil
+}
+
+// rawKeyParams uses *bool for Down so we can distinguish absent from false.
+type rawKeyParams struct {
+	Code      int     `json:"code"`
+	Direction *string `json:"direction"`
+	Down      *bool   `json:"down"`
+}
+
+func handleInputRawKey(req *shared.OnActionRequest) (any, error) {
+	var p rawKeyParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	direction := "click"
+	switch {
+	case p.Direction != nil:
+		direction = *p.Direction
+	case p.Down != nil && *p.Down:
+		direction = "press"
+	case p.Down != nil:
+		direction = "release"
+	}
+	logErr("input.raw_key", plugin.Call("input.raw_key", map[string]any{"code": p.Code, "direction": direction}, nil))
+	return nil, nil
+}
+
+type clickParams struct {
+	Button string `json:"button"`
+}
+
+func handleInputClick(req *shared.OnActionRequest) (any, error) {
+	var p clickParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	if p.Button == "" {
+		p.Button = "left"
+	}
+	logErr("input.click", plugin.Call("input.click", map[string]any{"button": p.Button}, nil))
+	return nil, nil
+}
+
+type scrollParams struct {
+	Direction string         `json:"direction"`
+	Amount    *int           `json:"amount"`
+}
+
+func handleInputScroll(req *shared.OnActionRequest) (any, error) {
+	var p scrollParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	params := map[string]any{"direction": p.Direction}
+	if p.Amount != nil {
+		params["amount"] = *p.Amount
+	}
+	logErr("input.scroll", plugin.Call("input.scroll", params, nil))
+	return nil, nil
+}
+
+type moveParams struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+func handleInputMove(req *shared.OnActionRequest) (any, error) {
+	var p moveParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	logErr("input.move", plugin.Call("native.warp_cursor", map[string]any{"x": p.X, "y": p.Y}, nil))
+	return nil, nil
+}
+
+func handleInputMouseDown(req *shared.OnActionRequest) (any, error) {
+	var p clickParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	if p.Button == "" {
+		p.Button = "left"
+	}
+	logErr("input.mouse_down", plugin.Call("input.mouse_button", map[string]any{"button": p.Button, "direction": "press"}, nil))
+	return nil, nil
+}
+
+func handleInputMouseUp(req *shared.OnActionRequest) (any, error) {
+	var p clickParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	if p.Button == "" {
+		p.Button = "left"
+	}
+	logErr("input.mouse_up", plugin.Call("input.mouse_button", map[string]any{"button": p.Button, "direction": "release"}, nil))
+	return nil, nil
+}
+
+type clipboardParams struct {
+	Action string `json:"action"`
+	Text   string `json:"text"`
+}
+
+func handleInputClipboard(req *shared.OnActionRequest) (any, error) {
+	var p clipboardParams
+	if err := req.UnmarshalParams(&p); err != nil {
+		return nil, err
+	}
+	params := map[string]any{"action": p.Action}
+	if p.Text != "" {
+		params["text"] = p.Text
+	}
+	logErr("input.clipboard", plugin.Call("input.clipboard_action", params, nil))
+	return nil, nil
 }
 
 // keyTextEquivalent returns the text equivalent of a key name for the "text" strategy.
@@ -635,39 +698,6 @@ func keyTextEquivalent(name string) string {
 		return " "
 	default:
 		return ""
-	}
-}
-
-// toStringSlice extracts a []string from an interface{} that may be []interface{}.
-func toStringSlice(v interface{}) []string {
-	if v == nil {
-		return nil
-	}
-	arr, ok := v.([]interface{})
-	if !ok {
-		return nil
-	}
-	result := make([]string, 0, len(arr))
-	for _, item := range arr {
-		if s, ok := item.(string); ok {
-			result = append(result, s)
-		}
-	}
-	return result
-}
-
-// toInt extracts an int from an interface{} that may be float64 (JSON number).
-func toInt(v interface{}) int {
-	switch n := v.(type) {
-	case float64:
-		return int(n)
-	case int:
-		return n
-	case json.Number:
-		i, _ := n.Int64()
-		return int(i)
-	default:
-		return 0
 	}
 }
 
@@ -1085,22 +1115,34 @@ func main() {
 	})
 
 	// Register handlers (actuator→plugin requests)
-	plugin.Handle("build_registry", rpcHandler(handleBuildRegistry))
-	plugin.Handle("render_settings", rpcHandler(handleRenderSettings))
-	plugin.Handle("start_remap", rpcHandler(handleStartRemap))
-	plugin.Handle("remap", rpcHandler(handleRemap))
-	plugin.Handle("cancel_remap", rpcHandler(handleCancelRemap))
-	plugin.Handle("reset", rpcHandler(handleReset))
-	plugin.Handle("reset_all", rpcHandler(handleResetAll))
-	plugin.Handle("start_capture", rpcHandler(handleStartCapture))
-	plugin.Handle("stop_capture", rpcHandler(handleStopCapture))
-	plugin.Handle("delete_key_name", rpcHandler(handleDeleteKeyName))
-	plugin.Handle("start_edit_key", rpcHandler(handleStartEditKey))
-	plugin.Handle("cancel_edit_key", rpcHandler(handleCancelEditKey))
-	plugin.Handle("edit_key_keydown", rpcHandler(handleEditKeyKeydown))
-	plugin.Handle("parse_key_event", rpcHandler(handleParseKeyEvent))
-	plugin.Handle("remap_keydown", rpcHandler(handleRemapKeydown))
-	plugin.Handle("on_action", rpcHandler(handleOnAction))
+	shared.HandleTyped(plugin, "build_registry", handleBuildRegistry)
+	shared.HandleTyped(plugin, "render_settings", handleRenderSettings)
+	shared.HandleTyped(plugin, "start_remap", handleStartRemap)
+	shared.HandleTyped(plugin, "remap", handleRemap)
+	shared.HandleTyped(plugin, "cancel_remap", handleCancelRemap)
+	shared.HandleTyped(plugin, "reset", handleReset)
+	shared.HandleTyped(plugin, "reset_all", handleResetAll)
+	shared.HandleTyped(plugin, "start_capture", handleStartCapture)
+	shared.HandleTyped(plugin, "stop_capture", handleStopCapture)
+	shared.HandleTyped(plugin, "delete_key_name", handleDeleteKeyName)
+	shared.HandleTyped(plugin, "start_edit_key", handleStartEditKey)
+	shared.HandleTyped(plugin, "cancel_edit_key", handleCancelEditKey)
+	shared.HandleTyped(plugin, "edit_key_keydown", handleEditKeyKeydown)
+	shared.HandleTyped(plugin, "parse_key_event", handleParseKeyEvent)
+	shared.HandleTyped(plugin, "remap_keydown", handleRemapKeydown)
+	// Per-action handlers (replaces the old single on_action switch).
+	plugin.HandleAction("input.type", handleInputType)
+	plugin.HandleAction("input.key_by_name", handleInputKeyByName)
+	plugin.HandleAction("input.key", handleInputKey)
+	plugin.HandleAction("input.shortcut_by_name", handleInputShortcutByName)
+	plugin.HandleAction("input.shortcut", handleInputShortcut)
+	plugin.HandleAction("input.raw_key", handleInputRawKey)
+	plugin.HandleAction("input.click", handleInputClick)
+	plugin.HandleAction("input.scroll", handleInputScroll)
+	plugin.HandleAction("input.move", handleInputMove)
+	plugin.HandleAction("input.mouse_down", handleInputMouseDown)
+	plugin.HandleAction("input.mouse_up", handleInputMouseUp)
+	plugin.HandleAction("input.clipboard", handleInputClipboard)
 
 	// Run the message loop (blocks until stdin closes or SIGTERM)
 	plugin.Run()
