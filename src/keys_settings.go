@@ -199,7 +199,7 @@ func pushKeyNamesToStore(merged map[string]uint16) error {
 		Name string             `json:"name"`
 		Data map[string]uint16  `json:"data"`
 	}{Name: "key_names", Data: merged}
-	return plugin.Call("store.push", body, nil)
+	return plugin.Call("collection.push", body, nil)
 }
 
 type deleteKeyNameRequest struct {

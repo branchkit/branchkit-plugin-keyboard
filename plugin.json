@@ -91,8 +91,7 @@
     }
   },
   "provides": {
-    "stores": ["keybinds", "key_names", "layout_characters"],
-    "store_schemas": {
+    "collections": {
       "keybinds": { "merge": "keyed", "description": "Global hotkey bindings mapping key combos to actions." },
       "key_names": { "merge": "authoritative", "description": "Human-readable key names for the current keyboard layout." },
       "layout_characters": { "merge": "authoritative", "description": "Typeable characters for the active keyboard layout." }
@@ -101,7 +100,7 @@
   "run": "./keybind-plugin",
   "consumes": {
     "events": [
-      {"pattern": "_platform.store.updated"},
+      {"pattern": "_platform.collection.updated"},
       {"pattern": "_platform.keyboard.layout_changed"}
     ]
   },

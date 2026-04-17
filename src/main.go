@@ -669,7 +669,7 @@ func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 		Data map[string]map[string]string `json:"data"`
 	}
 	keybindsByPlugin := make(map[string]map[string]string)
-	if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+	if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
 		shared.Logf("keyboard", "failed to read store: %v", err)
 	} else {
 		keybindsByPlugin = storeResp.Data
@@ -934,7 +934,7 @@ func loadAndPushKeyNames(p *shared.Plugin) {
 		Name string             `json:"name"`
 		Data map[string]uint16  `json:"data"`
 	}{Name: "key_names", Data: merged}
-	if err := p.Call("store.push", body, nil); err != nil {
+	if err := p.Call("collection.push", body, nil); err != nil {
 		shared.Logf("keyboard", "Failed to push key_names store: %v", err)
 		return
 	}
@@ -997,7 +997,7 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 		Name string            `json:"name"`
 		Data map[string]string `json:"data"`
 	}{Name: "layout_characters", Data: chars}
-	if err := p.Call("store.push", body, nil); err != nil {
+	if err := p.Call("collection.push", body, nil); err != nil {
 		shared.Logf("keyboard", "Failed to push layout_characters store: %v", err)
 		return
 	}
@@ -1017,7 +1017,7 @@ func main() {
 		var storeResp struct {
 			Data map[string]map[string]string `json:"data"`
 		}
-		if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+		if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
 			shared.Logf("keyboard", "failed to read keybinds store: %v", err)
 		} else {
 			mu.Lock()
@@ -1038,7 +1038,7 @@ func main() {
 	}
 
 	// Subscribe to events (actuator→plugin notifications)
-	plugin.On("_platform.store.updated", func(params json.RawMessage) {
+	plugin.On("_platform.collection.updated", func(params json.RawMessage) {
 		var payload struct {
 			Store string `json:"store"`
 		}
@@ -1052,7 +1052,7 @@ func main() {
 		var storeResp struct {
 			Data map[string]map[string]string `json:"data"`
 		}
-		if err := plugin.Call("store.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+		if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
 			shared.Logf("keyboard", "store update: failed to read keybinds: %v", err)
 			return
 		}
