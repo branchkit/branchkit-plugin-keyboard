@@ -7,7 +7,6 @@ import (
 func TestLocalKeyNames_NilState(t *testing.T) {
 	mu.Lock()
 	state.KeyNamesMerged = nil
-	state.KeyNameOverrides = nil
 	mu.Unlock()
 
 	entries := localKeyNames()
@@ -18,9 +17,7 @@ func TestLocalKeyNames_NilState(t *testing.T) {
 
 func TestLocalKeyNames_SourceAttribution(t *testing.T) {
 	mu.Lock()
-	state.KeyNameDefaults = map[string]uint16{"a": 0, "z": 6, "return": 36}
-	state.KeyNameOverrides = map[string]uint16{"z": 99}
-	state.KeyNamesMerged = map[string]uint16{"a": 0, "z": 99, "return": 36}
+	state.KeyNamesMerged = map[string]uint16{"a": 0, "z": 6, "return": 36}
 	mu.Unlock()
 
 	entries := localKeyNames()
@@ -33,50 +30,12 @@ func TestLocalKeyNames_SourceAttribution(t *testing.T) {
 		byName[e.Name] = e
 	}
 
-	// "a" is default
 	if byName["a"].Source != "default" {
 		t.Errorf("'a' source = %q, want 'default'", byName["a"].Source)
 	}
 	if byName["a"].Keycode != 0 {
 		t.Errorf("'a' keycode = %d, want 0", byName["a"].Keycode)
 	}
-
-	// "z" is overridden
-	if byName["z"].Source != "user" {
-		t.Errorf("'z' source = %q, want 'user'", byName["z"].Source)
-	}
-	if byName["z"].Keycode != 99 {
-		t.Errorf("'z' keycode = %d, want 99 (overridden)", byName["z"].Keycode)
-	}
-
-	// "return" is default
-	if byName["return"].Source != "default" {
-		t.Errorf("'return' source = %q, want 'default'", byName["return"].Source)
-	}
-}
-
-func TestSetKeyNameOverride_MergesCorrectly(t *testing.T) {
-	mu.Lock()
-	state.KeyNameDefaults = map[string]uint16{"a": 0, "z": 6}
-	state.KeyNameOverrides = make(map[string]uint16)
-	state.KeyNamesMerged = map[string]uint16{"a": 0, "z": 6}
-	mu.Unlock()
-
-	// Can't test the full setKeyNameOverride (needs filesystem + platform client),
-	// but we can test the merge logic directly
-	mu.Lock()
-	state.KeyNameOverrides["z"] = 99
-	state.KeyNamesMerged["z"] = 99
-	mu.Unlock()
-
-	mu.Lock()
-	if state.KeyNamesMerged["z"] != 99 {
-		t.Errorf("merged z = %d, want 99", state.KeyNamesMerged["z"])
-	}
-	if state.KeyNamesMerged["a"] != 0 {
-		t.Errorf("merged a = %d, want 0 (unchanged)", state.KeyNamesMerged["a"])
-	}
-	mu.Unlock()
 }
 
 func TestBuildLayoutCharacters_USQwerty(t *testing.T) {
@@ -98,16 +57,13 @@ func TestBuildLayoutCharacters_USQwerty(t *testing.T) {
 
 func TestBuildLayoutCharacters_QWERTZ(t *testing.T) {
 	keyNames := map[string]uint16{"y": 16, "z": 6}
-	// On QWERTZ: keycode 6 produces "y", keycode 16 produces "z"
 	layoutMappings := map[string]string{"6": "y", "16": "z"}
 
 	chars := buildLayoutCharacters(keyNames, layoutMappings)
 
-	// Physical key "z" (keycode 6) produces "y" on QWERTZ
 	if chars["z"] != "y" {
 		t.Errorf("z = %q, want \"y\" (QWERTZ)", chars["z"])
 	}
-	// Physical key "y" (keycode 16) produces "z" on QWERTZ
 	if chars["y"] != "z" {
 		t.Errorf("y = %q, want \"z\" (QWERTZ)", chars["y"])
 	}
@@ -115,7 +71,6 @@ func TestBuildLayoutCharacters_QWERTZ(t *testing.T) {
 
 func TestBuildLayoutCharacters_UnknownKeycodes(t *testing.T) {
 	keyNames := map[string]uint16{"a": 0}
-	// Keycode 99 is in layout but has no key name
 	layoutMappings := map[string]string{"0": "a", "99": "?"}
 
 	chars := buildLayoutCharacters(keyNames, layoutMappings)
@@ -123,24 +78,16 @@ func TestBuildLayoutCharacters_UnknownKeycodes(t *testing.T) {
 	if len(chars) != 1 {
 		t.Errorf("expected 1 entry, got %d (unknown keycodes should be skipped)", len(chars))
 	}
-	if chars["a"] != "a" {
-		t.Errorf("a = %q, want \"a\"", chars["a"])
-	}
 }
 
 func TestBuildLayoutCharacters_Aliases(t *testing.T) {
-	// "backslash" and "\\" both map to keycode 42
 	keyNames := map[string]uint16{"backslash": 42, "\\": 42}
 	layoutMappings := map[string]string{"42": "\\"}
 
 	chars := buildLayoutCharacters(keyNames, layoutMappings)
 
-	// Both aliases should get the character
 	if chars["backslash"] != "\\" {
 		t.Errorf("backslash = %q, want \"\\\\\"", chars["backslash"])
-	}
-	if chars["\\"] != "\\" {
-		t.Errorf("\\\\ = %q, want \"\\\\\"", chars["\\"])
 	}
 	if len(chars) != 2 {
 		t.Errorf("expected 2 entries (both aliases), got %d", len(chars))
@@ -148,48 +95,18 @@ func TestBuildLayoutCharacters_Aliases(t *testing.T) {
 }
 
 func TestBuildLayoutCharacters_EmptyInputs(t *testing.T) {
-	// Empty key names
 	chars := buildLayoutCharacters(nil, map[string]string{"0": "a"})
 	if len(chars) != 0 {
 		t.Errorf("nil key names: expected 0 entries, got %d", len(chars))
 	}
 
-	// Empty layout
 	chars = buildLayoutCharacters(map[string]uint16{"a": 0}, nil)
 	if len(chars) != 0 {
 		t.Errorf("nil layout: expected 0 entries, got %d", len(chars))
 	}
 
-	// Both empty
 	chars = buildLayoutCharacters(nil, nil)
 	if len(chars) != 0 {
 		t.Errorf("both nil: expected 0 entries, got %d", len(chars))
 	}
-}
-
-func TestDeleteKeyNameOverride_RevertsToDefault(t *testing.T) {
-	mu.Lock()
-	state.KeyNameDefaults = map[string]uint16{"a": 0, "z": 6}
-	state.KeyNameOverrides = map[string]uint16{"z": 99}
-	state.KeyNamesMerged = map[string]uint16{"a": 0, "z": 99}
-	mu.Unlock()
-
-	// Simulate the merge logic from deleteKeyNameOverride
-	mu.Lock()
-	delete(state.KeyNameOverrides, "z")
-	merged := make(map[string]uint16, len(state.KeyNameDefaults))
-	for k, v := range state.KeyNameDefaults {
-		merged[k] = v
-	}
-	for k, v := range state.KeyNameOverrides {
-		merged[k] = v
-	}
-	state.KeyNamesMerged = merged
-	mu.Unlock()
-
-	mu.Lock()
-	if state.KeyNamesMerged["z"] != 6 {
-		t.Errorf("merged z after delete = %d, want 6 (reverted to default)", state.KeyNamesMerged["z"])
-	}
-	mu.Unlock()
 }

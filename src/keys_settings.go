@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -41,14 +39,9 @@ func localKeyNames() []keyNameEntry {
 		mu.Unlock()
 		return nil
 	}
-	// Copy under lock to avoid races with setKeyNameOverride/deleteKeyNameOverride
 	entries := make([]keyNameEntry, 0, len(state.KeyNamesMerged))
 	for name, keycode := range state.KeyNamesMerged {
-		source := "default"
-		if _, ok := state.KeyNameOverrides[name]; ok {
-			source = "user"
-		}
-		entries = append(entries, keyNameEntry{Name: name, Keycode: keycode, Source: source})
+		entries = append(entries, keyNameEntry{Name: name, Keycode: keycode, Source: "default"})
 	}
 	mu.Unlock()
 	return entries
@@ -127,79 +120,14 @@ func renderKeysSettings(search string) string {
 
 // setKeyNameOverride adds or updates a user override, re-merges, saves, and re-pushes the store.
 // Caller must NOT hold mu.
-func setKeyNameOverride(name string, keycode uint16) error {
-	mu.Lock()
-	state.KeyNameOverrides[name] = keycode
-	state.KeyNamesMerged[name] = keycode
-	overrides := make(map[string]uint16, len(state.KeyNameOverrides))
-	for k, v := range state.KeyNameOverrides {
-		overrides[k] = v
-	}
-	merged := make(map[string]uint16, len(state.KeyNamesMerged))
-	for k, v := range state.KeyNamesMerged {
-		merged[k] = v
-	}
-	mu.Unlock()
-
-	if err := saveKeyNameOverrides(overrides); err != nil {
-		return err
-	}
-	return pushKeyNamesToStore(merged)
-}
-
-// deleteKeyNameOverride removes a user override, re-merges from defaults, saves, and re-pushes.
-// Caller must NOT hold mu.
-func deleteKeyNameOverride(name string) error {
-	mu.Lock()
-	delete(state.KeyNameOverrides, name)
-	// Re-merge from defaults
-	merged := make(map[string]uint16, len(state.KeyNameDefaults))
-	for k, v := range state.KeyNameDefaults {
-		merged[k] = v
-	}
-	for k, v := range state.KeyNameOverrides {
-		merged[k] = v
-	}
-	state.KeyNamesMerged = merged
-	overrides := make(map[string]uint16, len(state.KeyNameOverrides))
-	for k, v := range state.KeyNameOverrides {
-		overrides[k] = v
-	}
-	mergedCopy := make(map[string]uint16, len(merged))
-	for k, v := range merged {
-		mergedCopy[k] = v
-	}
-	mu.Unlock()
-
-	if err := saveKeyNameOverrides(overrides); err != nil {
-		return err
-	}
-	return pushKeyNamesToStore(mergedCopy)
-}
-
-func saveKeyNameOverrides(overrides map[string]uint16) error {
-	appSupport := os.Getenv("BRANCHKIT_APP_SUPPORT")
-	if appSupport == "" {
-		return fmt.Errorf("BRANCHKIT_APP_SUPPORT not set")
-	}
-	path := filepath.Join(appSupport, "key_names.json")
-	if len(overrides) == 0 {
-		os.Remove(path)
-		return nil
-	}
-	data, err := json.MarshalIndent(overrides, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
-func pushKeyNamesToStore(merged map[string]uint16) error {
-	body := struct {
-		Name string             `json:"name"`
-		Data map[string]uint16  `json:"data"`
-	}{Name: "keycodes", Data: merged}
-	return plugin.Call("collection.push", body, nil)
+// overrideKeycode calls the platform collection.override RPC to persist a keycode override.
+func overrideKeycode(name string, keycode uint16) error {
+	return plugin.Call("collection.override", map[string]any{
+		"collection": "keycodes",
+		"action":     "add",
+		"key":        name,
+		"value":      fmt.Sprintf("%d", keycode),
+	}, nil)
 }
 
 type deleteKeyNameRequest struct {
@@ -207,7 +135,11 @@ type deleteKeyNameRequest struct {
 }
 
 func handleDeleteKeyName(req *deleteKeyNameRequest) (any, error) {
-	err := deleteKeyNameOverride(req.Name)
+	err := plugin.Call("collection.override", map[string]any{
+		"collection": "keycodes",
+		"action":     "remove",
+		"key":        req.Name,
+	}, nil)
 	if err != nil {
 		shared.Logf("keyboard", "delete key name error: %v", err)
 		mu.Lock()
@@ -283,7 +215,7 @@ func handleEditKeyKeydown(req *editKeyKeydownRequest) (any, error) {
 		return OkResponse{OK: false}, nil
 	}
 
-	if err := setKeyNameOverride(editingName, newKeycode); err != nil {
+	if err := overrideKeycode(editingName, newKeycode); err != nil {
 		mu.Lock()
 		state.KeysError = fmt.Sprintf("Failed to update key: %v", err)
 		mu.Unlock()

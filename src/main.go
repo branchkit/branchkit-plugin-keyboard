@@ -330,10 +330,8 @@ type PluginState struct {
 	RemappingCombo    string // empty = not remapping
 	KeysError         string // error message shown on next Keys tab render, then cleared
 	EditingKeyName    string // key name being edited (empty = not editing)
-	// Key names: physical key name → keycode (loaded from data/key_names_macos.json + user overrides)
-	KeyNameDefaults  map[string]uint16 // from bundled JSON
-	KeyNameOverrides map[string]uint16 // user overrides
-	KeyNamesMerged   map[string]uint16 // defaults + overrides merged
+	// Key names: physical key name → keycode (loaded from data/key_names_macos.json)
+	KeyNamesMerged   map[string]uint16
 	// Layout: cached from GET /v1/native/keyboard-layout at startup
 	LayoutName       string            // e.g. "U.S."
 	LayoutMappings   map[string]string // keycode (as string) → character
@@ -878,77 +876,49 @@ func handleStopCapture(_ *struct{}) (any, error) {
 }
 
 // loadAndPushKeycodes loads key_names_macos.json from the plugin data dir,
-// merges user overrides, stores in plugin state, and pushes to the keycodes store.
+// stores in plugin state, and pushes to the keycodes store.
+// User overrides are handled by the platform collection override system.
 func loadAndPushKeycodes(p *shared.Plugin) {
 	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
 	if pluginDir == "" {
 		pluginDir = "."
 	}
 
-	// Load defaults from bundled JSON
 	dataPath := filepath.Join(pluginDir, "data", "key_names_macos.json")
 	data, err := os.ReadFile(dataPath)
 	if err != nil {
 		shared.Logf("keyboard", "Failed to read %s: %v", dataPath, err)
 		return
 	}
-	var defaults map[string]uint16
-	if err := json.Unmarshal(data, &defaults); err != nil {
+	var keycodes map[string]uint16
+	if err := json.Unmarshal(data, &keycodes); err != nil {
 		shared.Logf("keyboard", "Failed to parse %s: %v", dataPath, err)
 		return
 	}
 
-	// Load user overrides from app support dir
-	appSupport := os.Getenv("BRANCHKIT_APP_SUPPORT")
-	var overrides map[string]uint16
-	if appSupport != "" {
-		overridePath := filepath.Join(appSupport, "key_names.json")
-		if ovData, err := os.ReadFile(overridePath); err == nil {
-			if err := json.Unmarshal(ovData, &overrides); err != nil {
-				shared.Logf("keyboard", "Failed to parse key name overrides: %v", err)
-			}
-		}
-	}
-	if overrides == nil {
-		overrides = make(map[string]uint16)
-	}
-
-	// Merge: defaults + overrides
-	merged := make(map[string]uint16, len(defaults))
-	for k, v := range defaults {
-		merged[k] = v
-	}
-	for k, v := range overrides {
-		merged[k] = v
-	}
-
-	// Store in plugin state
 	mu.Lock()
-	state.KeyNameDefaults = defaults
-	state.KeyNameOverrides = overrides
-	state.KeyNamesMerged = merged
+	state.KeyNamesMerged = keycodes
 	mu.Unlock()
 
-	// Push to key_names store via RPC
+	// Push to keycodes store via RPC
 	body := struct {
 		Name string             `json:"name"`
 		Data map[string]uint16  `json:"data"`
-	}{Name: "keycodes", Data: merged}
+	}{Name: "keycodes", Data: keycodes}
 	if err := p.Call("collection.push", body, nil); err != nil {
-		shared.Logf("keyboard", "Failed to push key_names store: %v", err)
+		shared.Logf("keyboard", "Failed to push keycodes store: %v", err)
 		return
 	}
 
-	// Set the platform key name cache directly (replaces content_type side effect)
+	// Set the platform key name cache directly
 	namesBody := struct {
 		Names map[string]uint16 `json:"names"`
-	}{Names: merged}
+	}{Names: keycodes}
 	if err := p.Call("key_names.set", namesBody, nil); err != nil {
 		shared.Logf("keyboard", "Failed to set key_names cache: %v", err)
 	}
 
-	shared.Logf("keyboard", "Pushed %d keycodes to store (%d defaults + %d overrides)",
-		len(merged), len(defaults), len(overrides))
+	shared.Logf("keyboard", "Pushed %d keycodes to store", len(keycodes))
 }
 
 // buildLayoutCharacters joins keycodes with layout mappings to produce
