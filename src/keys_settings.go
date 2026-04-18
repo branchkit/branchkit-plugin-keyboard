@@ -198,7 +198,7 @@ func pushKeyNamesToStore(merged map[string]uint16) error {
 	body := struct {
 		Name string             `json:"name"`
 		Data map[string]uint16  `json:"data"`
-	}{Name: "key_names", Data: merged}
+	}{Name: "keycodes", Data: merged}
 	return plugin.Call("collection.push", body, nil)
 }
 

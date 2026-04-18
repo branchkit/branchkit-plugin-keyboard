@@ -1,0 +1,19 @@
+{
+  "return": "return", "enter": "return",
+  "tab": "tab", "space": "space",
+  "delete": "delete", "backspace": "delete",
+  "escape": "escape",
+  "up": "up", "down": "down", "left": "left", "right": "right",
+  "page up": "pageup", "page down": "pagedown",
+  "home": "home", "end": "end",
+  "0": "0", "1": "1", "2": "2", "3": "3", "4": "4",
+  "5": "5", "6": "6", "7": "7", "8": "8", "9": "9",
+  "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
+  "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
+  "f1": "f1", "f 1": "f1", "f2": "f2", "f 2": "f2",
+  "f3": "f3", "f 3": "f3", "f4": "f4", "f 4": "f4",
+  "f5": "f5", "f 5": "f5", "f6": "f6", "f 6": "f6",
+  "f7": "f7", "f 7": "f7", "f8": "f8", "f 8": "f8",
+  "f9": "f9", "f 9": "f9", "f10": "f10", "f 10": "f10",
+  "f11": "f11", "f 11": "f11", "f12": "f12", "f 12": "f12"
+}

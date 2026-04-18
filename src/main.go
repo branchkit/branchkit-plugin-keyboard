@@ -877,9 +877,9 @@ func handleStopCapture(_ *struct{}) (any, error) {
 	}, nil
 }
 
-// loadAndPushKeyNames loads key_names_macos.json from the plugin data dir,
-// merges user overrides, stores in plugin state, and pushes to the key_names store.
-func loadAndPushKeyNames(p *shared.Plugin) {
+// loadAndPushKeycodes loads key_names_macos.json from the plugin data dir,
+// merges user overrides, stores in plugin state, and pushes to the keycodes store.
+func loadAndPushKeycodes(p *shared.Plugin) {
 	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
 	if pluginDir == "" {
 		pluginDir = "."
@@ -933,7 +933,7 @@ func loadAndPushKeyNames(p *shared.Plugin) {
 	body := struct {
 		Name string             `json:"name"`
 		Data map[string]uint16  `json:"data"`
-	}{Name: "key_names", Data: merged}
+	}{Name: "keycodes", Data: merged}
 	if err := p.Call("collection.push", body, nil); err != nil {
 		shared.Logf("keyboard", "Failed to push key_names store: %v", err)
 		return
@@ -947,12 +947,12 @@ func loadAndPushKeyNames(p *shared.Plugin) {
 		shared.Logf("keyboard", "Failed to set key_names cache: %v", err)
 	}
 
-	shared.Logf("keyboard", "Pushed %d key names to store (%d defaults + %d overrides)",
+	shared.Logf("keyboard", "Pushed %d keycodes to store (%d defaults + %d overrides)",
 		len(merged), len(defaults), len(overrides))
 }
 
-// buildLayoutCharacters joins key names with layout mappings to produce
-// a physicalName → character map. Iterates key names directly so aliases
+// buildLayoutCharacters joins keycodes with layout mappings to produce
+// a physicalName → character map. Iterates keycodes directly so aliases
 // (multiple names for the same keycode, e.g. "backslash" and "\") all
 // get their layout character.
 func buildLayoutCharacters(keyNames map[string]uint16, layoutMappings map[string]string) map[string]string {
@@ -967,7 +967,7 @@ func buildLayoutCharacters(keyNames map[string]uint16, layoutMappings map[string
 }
 
 // loadAndPushLayoutCharacters fetches the keyboard layout from the actuator,
-// joins with key names, caches locally, and pushes the layout_characters store.
+// joins with keycodes, caches locally, and pushes the layout_characters store.
 func loadAndPushLayoutCharacters(p *shared.Plugin) {
 	type layoutResp struct {
 		LayoutID   string            `json:"layout_id"`
@@ -1005,12 +1005,91 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 		len(chars), layout.LayoutID)
 }
 
+// loadAndPushKeys loads spoken key names from data/keys.json, enriches with
+// layout-specific character entries, and pushes to the "keys" collection.
+func loadAndPushKeys(p *shared.Plugin) {
+	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
+	if pluginDir == "" {
+		pluginDir = "."
+	}
+
+	data, err := os.ReadFile(filepath.Join(pluginDir, "data", "keys.json"))
+	if err != nil {
+		shared.Logf("keyboard", "Failed to read data/keys.json: %v", err)
+		return
+	}
+	var entries map[string]string
+	if err := json.Unmarshal(data, &entries); err != nil {
+		shared.Logf("keyboard", "Failed to parse data/keys.json: %v", err)
+		return
+	}
+
+	// Enrich with layout characters — add single-letter character aliases
+	// so users can say the character name on non-US layouts.
+	mu.Lock()
+	chars := state.LayoutCharacters
+	mu.Unlock()
+	added := 0
+	for physicalName, ch := range chars {
+		lower := strings.ToLower(ch)
+		if len(lower) == 1 && lower[0] >= 'a' && lower[0] <= 'z' {
+			entries[lower] = physicalName
+			added++
+		}
+	}
+	if added > 0 {
+		shared.Logf("keyboard", "Added %d layout character entries to keys list", added)
+	}
+
+	body := struct {
+		Name string            `json:"name"`
+		Data map[string]string `json:"data"`
+	}{Name: "keys", Data: entries}
+	if err := p.Call("collection.push", body, nil); err != nil {
+		shared.Logf("keyboard", "Failed to push keys collection: %v", err)
+		return
+	}
+	shared.Logf("keyboard", "Pushed %d entries to keys collection", len(entries))
+}
+
+// loadAndPushModifiers loads spoken modifier names from data/modifiers.json
+// and pushes to the "modifiers" collection.
+func loadAndPushModifiers(p *shared.Plugin) {
+	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
+	if pluginDir == "" {
+		pluginDir = "."
+	}
+
+	data, err := os.ReadFile(filepath.Join(pluginDir, "data", "modifiers.json"))
+	if err != nil {
+		shared.Logf("keyboard", "Failed to read data/modifiers.json: %v", err)
+		return
+	}
+	var entries map[string]string
+	if err := json.Unmarshal(data, &entries); err != nil {
+		shared.Logf("keyboard", "Failed to parse data/modifiers.json: %v", err)
+		return
+	}
+
+	body := struct {
+		Name string            `json:"name"`
+		Data map[string]string `json:"data"`
+	}{Name: "modifiers", Data: entries}
+	if err := p.Call("collection.push", body, nil); err != nil {
+		shared.Logf("keyboard", "Failed to push modifiers collection: %v", err)
+		return
+	}
+	shared.Logf("keyboard", "Pushed %d entries to modifiers collection", len(entries))
+}
+
 func main() {
 	plugin = shared.NewPlugin()
 
 	// Push initial data to actuator stores
-	loadAndPushKeyNames(plugin)
+	loadAndPushKeycodes(plugin)
 	loadAndPushLayoutCharacters(plugin)
+	loadAndPushKeys(plugin)      // depends on layout_characters for enrichment
+	loadAndPushModifiers(plugin)
 
 	// Initial keybind registration — read store, build snapshot, register with platform
 	{
@@ -1072,8 +1151,9 @@ func main() {
 	})
 
 	plugin.On("_platform.keyboard.layout_changed", func(params json.RawMessage) {
-		shared.Logf("keyboard", "layout changed — re-pushing layout_characters")
+		shared.Logf("keyboard", "layout changed — re-pushing layout_characters and keys")
 		loadAndPushLayoutCharacters(plugin)
+		loadAndPushKeys(plugin) // re-enrich with new layout characters
 	})
 
 	// Register handlers (actuator→plugin requests)

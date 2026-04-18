@@ -1,0 +1,6 @@
+{
+  "command": "cmd", "cmd": "cmd",
+  "control": "ctrl", "ctrl": "ctrl",
+  "shift": "shift",
+  "option": "option", "alt": "option"
+}
