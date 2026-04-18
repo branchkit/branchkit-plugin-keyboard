@@ -328,8 +328,7 @@ type PluginState struct {
 	OverridesTomlPath string
 	Registry          InternalRegistry
 	RemappingCombo    string // empty = not remapping
-	KeysError         string // error message shown on next Keys tab render, then cleared
-	EditingKeyName    string // key name being edited (empty = not editing)
+	KeysError string // error message shown on next Keys tab render, then cleared
 	// Key names: physical key name → keycode (loaded from data/key_names_macos.json)
 	KeyNamesMerged   map[string]uint16
 	// Layout: cached from GET /v1/native/keyboard-layout at startup
@@ -900,11 +899,19 @@ func loadAndPushKeycodes(p *shared.Plugin) {
 	state.KeyNamesMerged = keycodes
 	mu.Unlock()
 
-	// Push to keycodes store via RPC
+	// Push as array of objects matching entry_schema: {name, code}
+	type keycodeEntry struct {
+		Name string `json:"name"`
+		Code uint16 `json:"code"`
+	}
+	entries := make([]keycodeEntry, 0, len(keycodes))
+	for name, code := range keycodes {
+		entries = append(entries, keycodeEntry{Name: name, Code: code})
+	}
 	body := struct {
-		Name string             `json:"name"`
-		Data map[string]uint16  `json:"data"`
-	}{Name: "keycodes", Data: keycodes}
+		Name string         `json:"name"`
+		Data []keycodeEntry `json:"data"`
+	}{Name: "keycodes", Data: entries}
 	if err := p.Call("collection.push", body, nil); err != nil {
 		shared.Logf("keyboard", "Failed to push keycodes store: %v", err)
 		return
@@ -919,6 +926,56 @@ func loadAndPushKeycodes(p *shared.Plugin) {
 	}
 
 	shared.Logf("keyboard", "Pushed %d keycodes to store", len(keycodes))
+}
+
+// refreshKeycodesFromCollection re-reads the keycodes collection (with overrides applied)
+// and updates the local state + platform key_names cache.
+func refreshKeycodesFromCollection() {
+	var resp struct {
+		Entries map[string]json.RawMessage `json:"entries"`
+	}
+	if err := plugin.Call("collection.get", map[string]string{"name": "keycodes"}, &resp); err != nil {
+		shared.Logf("keyboard", "failed to re-read keycodes collection: %v", err)
+		return
+	}
+	if resp.Entries == nil {
+		return
+	}
+
+	merged := make(map[string]uint16, len(resp.Entries))
+	for name, raw := range resp.Entries {
+		var v uint16
+		// value may be a number or a string number
+		if err := json.Unmarshal(raw, &v); err != nil {
+			var s string
+			if err2 := json.Unmarshal(raw, &s); err2 == nil {
+				var n int
+				if _, err3 := fmt.Sscanf(s, "%d", &n); err3 == nil {
+					v = uint16(n)
+				} else {
+					shared.Logf("keyboard", "skipping keycode entry %q: unparseable value %s", name, string(raw))
+					continue
+				}
+			} else {
+				shared.Logf("keyboard", "skipping keycode entry %q: unexpected value type %s", name, string(raw))
+				continue
+			}
+		}
+		merged[name] = v
+	}
+
+	mu.Lock()
+	state.KeyNamesMerged = merged
+	mu.Unlock()
+
+	// Update platform key_names cache
+	namesBody := struct {
+		Names map[string]uint16 `json:"names"`
+	}{Names: merged}
+	if err := plugin.Call("key_names.set", namesBody, nil); err != nil {
+		shared.Logf("keyboard", "failed to update key_names cache: %v", err)
+	}
+	shared.Logf("keyboard", "refreshed %d keycodes from collection update", len(merged))
 }
 
 // buildLayoutCharacters joins keycodes with layout mappings to produce
@@ -1011,15 +1068,24 @@ func loadAndPushKeys(p *shared.Plugin) {
 		shared.Logf("keyboard", "Added %d layout character entries to keys list", added)
 	}
 
+	// Push as array of objects matching entry_schema: {spoken, key}
+	type keyEntry struct {
+		Spoken string `json:"spoken"`
+		Key    string `json:"key"`
+	}
+	arr := make([]keyEntry, 0, len(entries))
+	for spoken, key := range entries {
+		arr = append(arr, keyEntry{Spoken: spoken, Key: key})
+	}
 	body := struct {
-		Name string            `json:"name"`
-		Data map[string]string `json:"data"`
-	}{Name: "keys", Data: entries}
+		Name string     `json:"name"`
+		Data []keyEntry `json:"data"`
+	}{Name: "keys", Data: arr}
 	if err := p.Call("collection.push", body, nil); err != nil {
 		shared.Logf("keyboard", "Failed to push keys collection: %v", err)
 		return
 	}
-	shared.Logf("keyboard", "Pushed %d entries to keys collection", len(entries))
+	shared.Logf("keyboard", "Pushed %d entries to keys collection", len(arr))
 }
 
 // loadAndPushModifiers loads spoken modifier names from data/modifiers.json
@@ -1041,15 +1107,24 @@ func loadAndPushModifiers(p *shared.Plugin) {
 		return
 	}
 
+	// Push as array of objects matching entry_schema: {spoken, key}
+	type modEntry struct {
+		Spoken string `json:"spoken"`
+		Key    string `json:"key"`
+	}
+	arr := make([]modEntry, 0, len(entries))
+	for spoken, key := range entries {
+		arr = append(arr, modEntry{Spoken: spoken, Key: key})
+	}
 	body := struct {
-		Name string            `json:"name"`
-		Data map[string]string `json:"data"`
-	}{Name: "modifiers", Data: entries}
+		Name string     `json:"name"`
+		Data []modEntry `json:"data"`
+	}{Name: "modifiers", Data: arr}
 	if err := p.Call("collection.push", body, nil); err != nil {
 		shared.Logf("keyboard", "Failed to push modifiers collection: %v", err)
 		return
 	}
-	shared.Logf("keyboard", "Pushed %d entries to modifiers collection", len(entries))
+	shared.Logf("keyboard", "Pushed %d entries to modifiers collection", len(arr))
 }
 
 func main() {
@@ -1094,7 +1169,13 @@ func main() {
 		if err := json.Unmarshal(params, &payload); err != nil {
 			return
 		}
-		if payload.Store != "keybinds" {
+		switch payload.Store {
+		case "keycodes":
+			refreshKeycodesFromCollection()
+			return
+		case "keybinds":
+			// handled below
+		default:
 			return
 		}
 		// Re-fetch keybinds from actuator
@@ -1136,10 +1217,6 @@ func main() {
 	shared.HandleTyped(plugin, "reset_all", handleResetAll)
 	shared.HandleTyped(plugin, "start_capture", handleStartCapture)
 	shared.HandleTyped(plugin, "stop_capture", handleStopCapture)
-	shared.HandleTyped(plugin, "delete_key_name", handleDeleteKeyName)
-	shared.HandleTyped(plugin, "start_edit_key", handleStartEditKey)
-	shared.HandleTyped(plugin, "cancel_edit_key", handleCancelEditKey)
-	shared.HandleTyped(plugin, "edit_key_keydown", handleEditKeyKeydown)
 	shared.HandleTyped(plugin, "parse_key_event", handleParseKeyEvent)
 	shared.HandleTyped(plugin, "remap_keydown", handleRemapKeydown)
 	// Per-action handlers (replaces the old single on_action switch).

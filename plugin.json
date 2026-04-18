@@ -93,7 +93,19 @@
   "provides": {
     "collections": {
       "keybinds": { "merge": "keyed", "description": "Global hotkey bindings mapping key combos to actions." },
-      "keycodes": { "merge": "authoritative", "description": "Platform-specific key name to keycode mappings." },
+      "keycodes": {
+        "label": "Keycodes",
+        "merge": "authoritative",
+        "description": "Platform-specific key name to keycode mappings.",
+        "entry_schema": {
+          "key_field": "name",
+          "value_field": "code",
+          "fields": [
+            { "key": "name", "field_type": "string", "label": "Key name" },
+            { "key": "code", "field_type": "int", "label": "Keycode" }
+          ]
+        }
+      },
       "layout_characters": { "merge": "authoritative", "description": "Typeable characters for the active keyboard layout." },
       "keys": {
         "label": "Keys",
