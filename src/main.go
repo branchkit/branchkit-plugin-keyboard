@@ -1051,23 +1051,6 @@ func loadAndPushKeys(p *shared.Plugin) {
 		return
 	}
 
-	// Enrich with layout characters — add single-letter character aliases
-	// so users can say the character name on non-US layouts.
-	mu.Lock()
-	chars := state.LayoutCharacters
-	mu.Unlock()
-	added := 0
-	for physicalName, ch := range chars {
-		lower := strings.ToLower(ch)
-		if len(lower) == 1 && lower[0] >= 'a' && lower[0] <= 'z' {
-			entries[lower] = physicalName
-			added++
-		}
-	}
-	if added > 0 {
-		shared.Logf("keyboard", "Added %d layout character entries to keys list", added)
-	}
-
 	// Push as array of objects matching entry_schema: {spoken, key}
 	type keyEntry struct {
 		Spoken string `json:"spoken"`
