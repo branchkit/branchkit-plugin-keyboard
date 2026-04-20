@@ -92,46 +92,43 @@
   },
   "provides": {
     "collections": {
-      "keybinds": { "merge": "keyed", "description": "Global hotkey bindings mapping key combos to actions." },
+      "keybinds": { "kind": "data", "merge": "keyed", "description": "Global hotkey bindings mapping key combos to actions." },
       "keycodes": {
+        "kind": "capture",
         "label": "Keycodes",
         "merge": "authoritative",
         "description": "Platform-specific key name to keycode mappings.",
-        "entry_schema": {
-          "key_field": "name",
-          "value_field": "code",
-          "fields": [
-            { "key": "name", "field_type": "string", "label": "Key name" },
-            { "key": "code", "field_type": "int", "label": "Keycode" }
-          ]
-        }
+        "key_field": "name",
+        "value_field": "code",
+        "fields": [
+          { "key": "name", "field_type": "string", "label": "Key name" },
+          { "key": "code", "field_type": "int", "label": "Keycode" }
+        ]
       },
-      "layout_characters": { "merge": "authoritative", "description": "Typeable characters for the active keyboard layout." },
+      "layout_characters": { "kind": "data", "merge": "authoritative", "description": "Typeable characters for the active keyboard layout." },
       "keys": {
+        "kind": "capture",
         "label": "Keys",
         "merge": "authoritative",
         "description": "Spoken key names for voice command matching.",
-        "entry_schema": {
-          "key_field": "spoken",
-          "value_field": "key",
-          "fields": [
-            { "key": "spoken", "field_type": "string", "label": "Spoken name" },
-            { "key": "key", "field_type": "string", "label": "Key name" }
-          ]
-        }
+        "key_field": "spoken",
+        "value_field": "key",
+        "fields": [
+          { "key": "spoken", "field_type": "string", "label": "Spoken name" },
+          { "key": "key", "field_type": "string", "label": "Key name" }
+        ]
       },
       "modifiers": {
+        "kind": "capture",
         "label": "Modifiers",
         "merge": "authoritative",
         "description": "Spoken modifier key names (cmd, shift, option, ctrl).",
-        "entry_schema": {
-          "key_field": "spoken",
-          "value_field": "key",
-          "fields": [
-            { "key": "spoken", "field_type": "string", "label": "Spoken name" },
-            { "key": "key", "field_type": "string", "label": "Modifier key" }
-          ]
-        }
+        "key_field": "spoken",
+        "value_field": "key",
+        "fields": [
+          { "key": "spoken", "field_type": "string", "label": "Spoken name" },
+          { "key": "key", "field_type": "string", "label": "Modifier key" }
+        ]
       }
     }
   },
