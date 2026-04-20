@@ -94,8 +94,7 @@
     "collections": {
       "keybinds": { "kind": "data", "merge": "keyed", "description": "Global hotkey bindings mapping key combos to actions." },
       "keycodes": {
-        "kind": "capture",
-        "label": "Keycodes",
+        "kind": "entity",
         "merge": "authoritative",
         "description": "Platform-specific key name to keycode mappings.",
         "key_field": "name",
@@ -107,8 +106,7 @@
       },
       "layout_characters": { "kind": "data", "merge": "authoritative", "description": "Typeable characters for the active keyboard layout." },
       "keys": {
-        "kind": "capture",
-        "label": "Keys",
+        "kind": "entity",
         "merge": "authoritative",
         "description": "Spoken key names for voice command matching.",
         "key_field": "spoken",
@@ -119,8 +117,7 @@
         ]
       },
       "modifiers": {
-        "kind": "capture",
-        "label": "Modifiers",
+        "kind": "entity",
         "merge": "authoritative",
         "description": "Spoken modifier key names (cmd, shift, option, ctrl).",
         "key_field": "spoken",
