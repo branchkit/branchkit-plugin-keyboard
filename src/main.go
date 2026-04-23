@@ -5,321 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
-
-// --- Key combo types ---
-
-type KeyEvent int
-
-const (
-	KeyEventPress KeyEvent = iota
-	KeyEventDown
-	KeyEventUp
-)
-
-func (e KeyEvent) String() string {
-	switch e {
-	case KeyEventDown:
-		return "down"
-	case KeyEventUp:
-		return "up"
-	default:
-		return "press"
-	}
-}
-
-type Modifiers struct {
-	Alt   bool
-	Shift bool
-	Ctrl  bool
-	Cmd   bool
-}
-
-type KeyCombo struct {
-	Key       string
-	Modifiers Modifiers
-	Event     KeyEvent
-}
-
-func (c KeyCombo) String() string {
-	var parts []string
-	if c.Modifiers.Ctrl {
-		parts = append(parts, "ctrl")
-	}
-	if c.Modifiers.Alt {
-		parts = append(parts, "opt")
-	}
-	if c.Modifiers.Shift {
-		parts = append(parts, "shift")
-	}
-	if c.Modifiers.Cmd {
-		parts = append(parts, "cmd")
-	}
-	parts = append(parts, c.Key)
-	combo := strings.Join(parts, "+")
-	if c.Event == KeyEventPress {
-		return combo
-	}
-	return combo + " " + c.Event.String()
-}
-
-func parseCombo(s string) (KeyCombo, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return KeyCombo{}, false
-	}
-
-	// Split off trailing event keyword
-	comboPart := s
-	event := KeyEventPress
-	words := strings.Fields(s)
-	if len(words) >= 2 {
-		last := strings.ToLower(words[len(words)-1])
-		switch last {
-		case "down":
-			comboPart = strings.Join(words[:len(words)-1], " ")
-			event = KeyEventDown
-		case "up":
-			comboPart = strings.Join(words[:len(words)-1], " ")
-			event = KeyEventUp
-		case "press":
-			comboPart = strings.Join(words[:len(words)-1], " ")
-			event = KeyEventPress
-		}
-	}
-
-	tokens := strings.Split(comboPart, "+")
-	for i := range tokens {
-		tokens[i] = strings.TrimSpace(tokens[i])
-	}
-	if len(tokens) == 0 {
-		return KeyCombo{}, false
-	}
-
-	key := strings.ToLower(tokens[len(tokens)-1])
-	if key == "" {
-		return KeyCombo{}, false
-	}
-
-	var mods Modifiers
-	for _, tok := range tokens[:len(tokens)-1] {
-		switch strings.ToLower(tok) {
-		case "alt", "opt", "option":
-			mods.Alt = true
-		case "shift":
-			mods.Shift = true
-		case "ctrl", "control":
-			mods.Ctrl = true
-		case "cmd", "command", "meta":
-			mods.Cmd = true
-		default:
-			return KeyCombo{}, false
-		}
-	}
-
-	return KeyCombo{Key: key, Modifiers: mods, Event: event}, true
-}
-
-// comboKey returns a string key suitable for map lookups.
-func comboKey(c KeyCombo) string {
-	return c.String()
-}
-
-// modifierKeyID returns the base combo without event suffix (for listen_up).
-func modifierKeyID(c KeyCombo) string {
-	var parts []string
-	if c.Modifiers.Alt {
-		parts = append(parts, "alt+")
-	}
-	if c.Modifiers.Shift {
-		parts = append(parts, "shift+")
-	}
-	if c.Modifiers.Ctrl {
-		parts = append(parts, "ctrl+")
-	}
-	if c.Modifiers.Cmd {
-		parts = append(parts, "cmd+")
-	}
-	return strings.Join(parts, "") + c.Key
-}
-
-// comboBaseString returns the combo without event type (for display).
-func comboBaseString(c KeyCombo) string {
-	var parts []string
-	if c.Modifiers.Ctrl {
-		parts = append(parts, "ctrl")
-	}
-	if c.Modifiers.Alt {
-		parts = append(parts, "opt")
-	}
-	if c.Modifiers.Shift {
-		parts = append(parts, "shift")
-	}
-	if c.Modifiers.Cmd {
-		parts = append(parts, "cmd")
-	}
-	parts = append(parts, c.Key)
-	return strings.Join(parts, "+")
-}
-
-// --- Registry ---
-
-type KeybindSource struct {
-	IsUser   bool
-	PluginID string
-}
-
-func (s KeybindSource) String() string {
-	if s.IsUser {
-		return "user"
-	}
-	return "plugin:" + s.PluginID
-}
-
-type KeybindEntry struct {
-	Combo  KeyCombo
-	Action string
-	Source KeybindSource
-}
-
-type InternalRegistry struct {
-	Entries  map[string]KeybindEntry // keyed by comboKey
-	ListenUp map[string]bool
-}
-
-func newRegistry() InternalRegistry {
-	return InternalRegistry{
-		Entries:  make(map[string]KeybindEntry),
-		ListenUp: make(map[string]bool),
-	}
-}
-
-func (r *InternalRegistry) resolve(c KeyCombo) (KeybindEntry, bool) {
-	if e, ok := r.Entries[comboKey(c)]; ok {
-		return e, true
-	}
-	// Fall back: if looking for Down, try Press
-	if c.Event == KeyEventDown {
-		press := KeyCombo{Key: c.Key, Modifiers: c.Modifiers, Event: KeyEventPress}
-		if e, ok := r.Entries[comboKey(press)]; ok {
-			return e, true
-		}
-	}
-	return KeybindEntry{}, false
-}
-
-// --- JSON interchange types ---
-
-type RegistrySnapshot struct {
-	Entries  []RegistryEntry `json:"entries"`
-	ListenUp []string        `json:"listen_up"`
-}
-
-type RegistryEntry struct {
-	Combo  string `json:"combo"`
-	Action string `json:"action"`
-	Source string `json:"source"`
-}
-
-func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
-	entries := make([]RegistryEntry, 0, len(r.Entries))
-	for _, e := range r.Entries {
-		entries = append(entries, RegistryEntry{
-			Combo:  e.Combo.String(),
-			Action: e.Action,
-			Source: e.Source.String(),
-		})
-	}
-	listenUp := make([]string, 0, len(r.ListenUp))
-	for k := range r.ListenUp {
-		listenUp = append(listenUp, k)
-	}
-	return RegistrySnapshot{Entries: entries, ListenUp: listenUp}
-}
-
-// --- TOML overrides ---
-
-func loadUserKeybindOverrides(path string) map[string]string {
-	if path == "" {
-		return make(map[string]string)
-	}
-	return loadOverridesFromTOML(path)
-}
-
-func saveUserKeybindOverrides(overrides map[string]string, path string) {
-	if path == "" {
-		return
-	}
-	saveOverridesToTOML(overrides, path)
-}
-
-// --- Registry build ---
-
-func buildRegistry(
-	keybindsByPlugin map[string]map[string]string,
-	overridesTomlPath string,
-) InternalRegistry {
-	reg := newRegistry()
-
-	// 1. Collect from plugins (sorted alphabetically, first wins)
-	pluginIDs := make([]string, 0, len(keybindsByPlugin))
-	for id := range keybindsByPlugin {
-		pluginIDs = append(pluginIDs, id)
-	}
-	sort.Strings(pluginIDs)
-
-	for _, pluginID := range pluginIDs {
-		keybinds := keybindsByPlugin[pluginID]
-		for comboStr, action := range keybinds {
-			combo, ok := parseCombo(comboStr)
-			if !ok {
-				continue
-			}
-			key := comboKey(combo)
-			if _, exists := reg.Entries[key]; exists {
-				continue // first plugin wins
-			}
-			reg.Entries[key] = KeybindEntry{
-				Combo:  combo,
-				Action: action,
-				Source: KeybindSource{PluginID: pluginID},
-			}
-		}
-	}
-
-	// 2. User TOML overrides (always win)
-	userOverrides := loadUserKeybindOverrides(overridesTomlPath)
-	for comboStr, action := range userOverrides {
-		combo, ok := parseCombo(comboStr)
-		if !ok {
-			continue
-		}
-		key := comboKey(combo)
-		if action == "" {
-			delete(reg.Entries, key)
-		} else {
-			reg.Entries[key] = KeybindEntry{
-				Combo:  combo,
-				Action: action,
-				Source: KeybindSource{IsUser: true},
-			}
-		}
-	}
-
-	// 3. Build listen_up set
-	for _, e := range reg.Entries {
-		if e.Combo.Event == KeyEventUp {
-			reg.ListenUp[modifierKeyID(e.Combo)] = true
-		}
-	}
-
-	return reg
-}
 
 // --- Plugin state ---
 
@@ -328,7 +18,7 @@ type PluginState struct {
 	OverridesTomlPath string
 	Registry          InternalRegistry
 	RemappingCombo    string // empty = not remapping
-	KeysError string // error message shown on next Keys tab render, then cleared
+	KeysError         string // error message shown on next Keys tab render, then cleared
 	// Key names: physical key name → keycode (loaded from data/key_names_macos.json)
 	KeyNamesMerged   map[string]uint16
 	// Layout: cached from GET /v1/native/keyboard-layout at startup
@@ -406,59 +96,7 @@ type SnapshotWithControl struct {
 	Control       *ControlDirectives `json:"_control,omitempty"`
 }
 
-// --- Settings rendering ---
-
-var corePluginIDs = map[string]bool{"voice": true, "keyboard": true, "wm": true}
-
-func capitalize(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
-func sourceGroupName(src KeybindSource) string {
-	if src.IsUser {
-		return "Custom"
-	}
-	name := capitalize(src.PluginID)
-	if corePluginIDs[src.PluginID] {
-		return name + " (Core)"
-	}
-	return name
-}
-
-func sourceBadgeLabel(src KeybindSource) string {
-	if src.IsUser {
-		return "Custom"
-	}
-	return capitalize(src.PluginID)
-}
-
-func humanizeAction(action string) string {
-	parts := strings.Fields(action)
-	base := action
-	if len(parts) > 0 {
-		base = parts[len(parts)-1]
-	}
-	base = strings.TrimSuffix(base, "-start")
-	base = strings.TrimSuffix(base, "-stop")
-	label := strings.ReplaceAll(base, "-", " ")
-	return capitalize(label)
-}
-
-func findActionForCombo(reg *InternalRegistry, comboStr string) string {
-	combo, ok := parseCombo(comboStr)
-	if !ok {
-		return ""
-	}
-	if e, found := reg.resolve(combo); found {
-		return e.Action
-	}
-	return ""
-}
-
-// --- Handlers ---
+// --- Globals ---
 
 var (
 	mu    sync.Mutex
@@ -467,198 +105,7 @@ var (
 
 var plugin *shared.Plugin
 
-// --- on_action: input simulation via native API ---
-//
-// Each input.* action gets its own typed handler. The SDK demuxes by
-// req.Action via plugin.HandleAction(...) — see main().
-
-func logErr(action string, err error) {
-	if err != nil {
-		shared.Logf("keyboard", "%s: %v", action, err)
-	}
-}
-
-// Param structs (TypeParams, KeyByNameParams, …) live in actions_gen.go,
-// generated from plugin.json's action_types block. Edit that and re-run
-// `just gen-plugins` — do not hand-declare these structs here.
-
-// buttonOrLeft returns the resolved button name, defaulting to "left"
-// when the pointer is nil or empty.
-func buttonOrLeft(b *ClickButton) string {
-	if b == nil || *b == "" {
-		return "left"
-	}
-	return string(*b)
-}
-
-func handleInputType(req *shared.OnActionRequest) (any, error) {
-	var p TypeParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	if p.Text == "" {
-		return nil, nil
-	}
-	logErr("input.type", plugin.Call("input.type_text", map[string]any{"text": p.Text}, nil))
-	return nil, nil
-}
-
-func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
-	var p KeyByNameParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	// "text" strategy: paste text equivalent instead of key event (when no modifiers)
-	if p.Strategy != nil && *p.Strategy == KeyByNameStrategyText && len(p.Modifiers) == 0 {
-		if textEquiv := keyTextEquivalent(p.Name); textEquiv != "" {
-			logErr("input.key_by_name", plugin.Call("input.type_text", map[string]any{"text": textEquiv}, nil))
-			return nil, nil
-		}
-	}
-	params := map[string]any{"name": p.Name}
-	if len(p.Modifiers) > 0 {
-		params["modifiers"] = p.Modifiers
-	}
-	logErr("input.key_by_name", plugin.Call("input.press_key", params, nil))
-	return nil, nil
-}
-
-func handleInputKey(req *shared.OnActionRequest) (any, error) {
-	var p KeyParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	logErr("input.key", plugin.Call("input.press_key", map[string]any{"code": p.Code}, nil))
-	return nil, nil
-}
-
-func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
-	var p ShortcutByNameParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	params := map[string]any{"name": p.Name}
-	if len(p.Modifiers) > 0 {
-		params["modifiers"] = p.Modifiers
-	}
-	logErr("input.shortcut_by_name", plugin.Call("input.press_key", params, nil))
-	return nil, nil
-}
-
-func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
-	var p ShortcutParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	params := map[string]any{"code": p.Code}
-	if len(p.Modifiers) > 0 {
-		params["modifiers"] = p.Modifiers
-	}
-	logErr("input.shortcut", plugin.Call("input.press_key", params, nil))
-	return nil, nil
-}
-
-func handleInputRawKey(req *shared.OnActionRequest) (any, error) {
-	var p RawKeyParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	direction := "click"
-	switch {
-	case p.Direction != nil:
-		direction = string(*p.Direction)
-	case p.Down != nil && *p.Down:
-		direction = "press"
-	case p.Down != nil:
-		direction = "release"
-	}
-	logErr("input.raw_key", plugin.Call("input.raw_key", map[string]any{"code": p.Code, "direction": direction}, nil))
-	return nil, nil
-}
-
-func handleInputClick(req *shared.OnActionRequest) (any, error) {
-	var p ClickParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	logErr("input.click", plugin.Call("input.click", map[string]any{"button": buttonOrLeft(p.Button)}, nil))
-	return nil, nil
-}
-
-func handleInputScroll(req *shared.OnActionRequest) (any, error) {
-	var p ScrollParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	params := map[string]any{"direction": string(p.Direction)}
-	if p.Amount != nil {
-		params["amount"] = *p.Amount
-	}
-	logErr("input.scroll", plugin.Call("input.scroll", params, nil))
-	return nil, nil
-}
-
-func handleInputMove(req *shared.OnActionRequest) (any, error) {
-	var p MoveParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	logErr("input.move", plugin.Call("native.warp_cursor", map[string]any{"x": p.X, "y": p.Y}, nil))
-	return nil, nil
-}
-
-func handleInputMouseDown(req *shared.OnActionRequest) (any, error) {
-	var p MouseDownParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	button := "left"
-	if p.Button != nil && *p.Button != "" {
-		button = string(*p.Button)
-	}
-	logErr("input.mouse_down", plugin.Call("input.mouse_button", map[string]any{"button": button, "direction": "press"}, nil))
-	return nil, nil
-}
-
-func handleInputMouseUp(req *shared.OnActionRequest) (any, error) {
-	var p MouseUpParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	button := "left"
-	if p.Button != nil && *p.Button != "" {
-		button = string(*p.Button)
-	}
-	logErr("input.mouse_up", plugin.Call("input.mouse_button", map[string]any{"button": button, "direction": "release"}, nil))
-	return nil, nil
-}
-
-func handleInputClipboard(req *shared.OnActionRequest) (any, error) {
-	var p ClipboardParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
-	params := map[string]any{"action": string(p.Action)}
-	if p.Text != nil && *p.Text != "" {
-		params["text"] = *p.Text
-	}
-	logErr("input.clipboard", plugin.Call("input.clipboard_action", params, nil))
-	return nil, nil
-}
-
-// keyTextEquivalent returns the text equivalent of a key name for the "text" strategy.
-func keyTextEquivalent(name string) string {
-	switch strings.ToLower(name) {
-	case "return", "enter":
-		return "\n"
-	case "tab":
-		return "\t"
-	case "space":
-		return " "
-	default:
-		return ""
-	}
-}
+// --- RPC handlers ---
 
 func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	// Read keybinds from the shared store via RPC
@@ -873,6 +320,60 @@ func handleStopCapture(_ *struct{}) (any, error) {
 		Control: &ControlDirectives{Signals: []string{"keybind:resume"}},
 	}, nil
 }
+
+// --- Settings rendering helpers ---
+
+var corePluginIDs = map[string]bool{"voice": true, "keyboard": true, "wm": true}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func sourceGroupName(src KeybindSource) string {
+	if src.IsUser {
+		return "Custom"
+	}
+	name := capitalize(src.PluginID)
+	if corePluginIDs[src.PluginID] {
+		return name + " (Core)"
+	}
+	return name
+}
+
+func sourceBadgeLabel(src KeybindSource) string {
+	if src.IsUser {
+		return "Custom"
+	}
+	return capitalize(src.PluginID)
+}
+
+func humanizeAction(action string) string {
+	parts := strings.Fields(action)
+	base := action
+	if len(parts) > 0 {
+		base = parts[len(parts)-1]
+	}
+	base = strings.TrimSuffix(base, "-start")
+	base = strings.TrimSuffix(base, "-stop")
+	label := strings.ReplaceAll(base, "-", " ")
+	return capitalize(label)
+}
+
+func findActionForCombo(reg *InternalRegistry, comboStr string) string {
+	combo, ok := parseCombo(comboStr)
+	if !ok {
+		return ""
+	}
+	if e, found := reg.resolve(combo); found {
+		return e.Action
+	}
+	return ""
+}
+
+// --- Data loading ---
 
 // loadAndPushKeycodes loads key_names_macos.json from the plugin data dir,
 // stores in plugin state, and pushes to the keycodes store.
@@ -1109,6 +610,8 @@ func loadAndPushModifiers(p *shared.Plugin) {
 	}
 	shared.Logf("keyboard", "Pushed %d entries to modifiers collection", len(arr))
 }
+
+// --- Startup ---
 
 func main() {
 	plugin = shared.NewPlugin()
