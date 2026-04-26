@@ -1,15 +1,13 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"html/template"
 	"sort"
 	"strings"
 
 	"github.com/a-h/templ"
-	shared "github.com/branchkit/plugin-sdk-go"
+	toolkit "github.com/branchkit/plugin-toolkit-go"
 )
 
 type keybindRowView struct {
@@ -166,10 +164,5 @@ func ifStr(cond bool, a, b string) string {
 }
 
 func renderTempl(c templ.Component) string {
-	var buf bytes.Buffer
-	if err := c.Render(context.Background(), &buf); err != nil {
-		shared.Logf("keyboard", "templ render error: %v", err)
-		return ""
-	}
-	return buf.String()
+	return toolkit.RenderTempl("keyboard", c)
 }

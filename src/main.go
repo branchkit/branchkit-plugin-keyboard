@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/branchkit/plugin-sdk-go"
+	toolkit "github.com/branchkit/plugin-toolkit-go"
 )
 
 // --- Plugin state ---
@@ -43,11 +44,6 @@ func (ps *PluginState) rebuild() RegistrySnapshot {
 
 type BuildRegistryRequest struct {
 	OverridesTomlPath string `json:"overrides_toml_path"`
-}
-
-type RenderSettingsRequest struct {
-	TabKey string `json:"tab_key"`
-	Search string `json:"search"`
 }
 
 type StartRemapRequest struct {
@@ -128,7 +124,7 @@ func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	return snapshot, nil
 }
 
-func handleRenderSettings(req *RenderSettingsRequest) (any, error) {
+func handleRenderSettings(req *shared.RenderSettingsRequest) (any, error) {
 	var html string
 	search := strings.ToLower(req.Search)
 
@@ -379,12 +375,7 @@ func findActionForCombo(reg *InternalRegistry, comboStr string) string {
 // stores in plugin state, and pushes to the keycodes store.
 // User overrides are handled by the platform collection override system.
 func loadAndPushKeycodes(p *shared.Plugin) {
-	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
-	if pluginDir == "" {
-		pluginDir = "."
-	}
-
-	dataPath := filepath.Join(pluginDir, "data", "key_names_macos.json")
+	dataPath := filepath.Join(toolkit.PluginDir(), "data", "key_names_macos.json")
 	data, err := os.ReadFile(dataPath)
 	if err != nil {
 		shared.Logf("keyboard", "Failed to read %s: %v", dataPath, err)
@@ -409,11 +400,7 @@ func loadAndPushKeycodes(p *shared.Plugin) {
 	for name, code := range keycodes {
 		entries = append(entries, keycodeEntry{Name: name, Code: code})
 	}
-	body := struct {
-		Name string         `json:"name"`
-		Data []keycodeEntry `json:"data"`
-	}{Name: "keycodes", Data: entries}
-	if err := p.Call("collection.push", body, nil); err != nil {
+	if err := toolkit.PushCollection(p, "keycodes", entries); err != nil {
 		shared.Logf("keyboard", "Failed to push keycodes store: %v", err)
 		return
 	}
@@ -521,11 +508,7 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 	mu.Unlock()
 
 	// Push to layout_characters store via RPC
-	body := struct {
-		Name string            `json:"name"`
-		Data map[string]string `json:"data"`
-	}{Name: "layout_characters", Data: chars}
-	if err := p.Call("collection.push", body, nil); err != nil {
+	if err := toolkit.PushCollection(p, "layout_characters", chars); err != nil {
 		shared.Logf("keyboard", "Failed to push layout_characters store: %v", err)
 		return
 	}
@@ -536,12 +519,7 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 // loadAndPushKeys loads spoken key names from data/keys.json, enriches with
 // layout-specific character entries, and pushes to the "keys" collection.
 func loadAndPushKeys(p *shared.Plugin) {
-	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
-	if pluginDir == "" {
-		pluginDir = "."
-	}
-
-	data, err := os.ReadFile(filepath.Join(pluginDir, "data", "keys.json"))
+	data, err := os.ReadFile(filepath.Join(toolkit.PluginDir(), "data", "keys.json"))
 	if err != nil {
 		shared.Logf("keyboard", "Failed to read data/keys.json: %v", err)
 		return
@@ -561,11 +539,7 @@ func loadAndPushKeys(p *shared.Plugin) {
 	for spoken, key := range entries {
 		arr = append(arr, keyEntry{Spoken: spoken, Key: key})
 	}
-	body := struct {
-		Name string     `json:"name"`
-		Data []keyEntry `json:"data"`
-	}{Name: "keys", Data: arr}
-	if err := p.Call("collection.push", body, nil); err != nil {
+	if err := toolkit.PushCollection(p, "keys", arr); err != nil {
 		shared.Logf("keyboard", "Failed to push keys collection: %v", err)
 		return
 	}
@@ -575,12 +549,7 @@ func loadAndPushKeys(p *shared.Plugin) {
 // loadAndPushModifiers loads spoken modifier names from data/modifiers.json
 // and pushes to the "modifiers" collection.
 func loadAndPushModifiers(p *shared.Plugin) {
-	pluginDir := os.Getenv("BRANCHKIT_PLUGIN_DIR")
-	if pluginDir == "" {
-		pluginDir = "."
-	}
-
-	data, err := os.ReadFile(filepath.Join(pluginDir, "data", "modifiers.json"))
+	data, err := os.ReadFile(filepath.Join(toolkit.PluginDir(), "data", "modifiers.json"))
 	if err != nil {
 		shared.Logf("keyboard", "Failed to read data/modifiers.json: %v", err)
 		return
@@ -600,11 +569,7 @@ func loadAndPushModifiers(p *shared.Plugin) {
 	for spoken, key := range entries {
 		arr = append(arr, modEntry{Spoken: spoken, Key: key})
 	}
-	body := struct {
-		Name string     `json:"name"`
-		Data []modEntry `json:"data"`
-	}{Name: "modifiers", Data: arr}
-	if err := p.Call("collection.push", body, nil); err != nil {
+	if err := toolkit.PushCollection(p, "modifiers", arr); err != nil {
 		shared.Logf("keyboard", "Failed to push modifiers collection: %v", err)
 		return
 	}
