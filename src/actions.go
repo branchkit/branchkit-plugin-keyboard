@@ -130,6 +130,9 @@ func handleInputScroll(req *shared.OnActionRequest) (any, error) {
 		return nil, err
 	}
 	params := map[string]any{"direction": string(p.Direction)}
+	if p.Unit != nil {
+		params["unit"] = string(*p.Unit)
+	}
 	if p.Amount != nil {
 		params["amount"] = *p.Amount
 	}

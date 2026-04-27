@@ -60,6 +60,7 @@
       "label": "Scroll",
       "fields": [
         { "key": "direction", "label": "Direction", "field_type": "enum", "enum_values": ["up", "down", "left", "right"], "required": true },
+        { "key": "unit", "label": "Unit", "field_type": "enum", "enum_values": ["line", "pixel"], "required": false },
         { "key": "amount", "label": "Amount", "field_type": "int", "required": false }
       ]
     },
