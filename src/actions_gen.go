@@ -112,9 +112,18 @@ const (
 	ScrollDirectionRight ScrollDirection = "right"
 )
 
+// ScrollUnit is a generated enum type.
+type ScrollUnit string
+
+const (
+	ScrollUnitLine ScrollUnit = "line"
+	ScrollUnitPixel ScrollUnit = "pixel"
+)
+
 // ScrollParams is the params shape for action "input.scroll (Scroll)".
 type ScrollParams struct {
 	Direction ScrollDirection `json:"direction"`
+	Unit *ScrollUnit `json:"unit,omitempty"`
 	Amount *int `json:"amount,omitempty"`
 }
 
