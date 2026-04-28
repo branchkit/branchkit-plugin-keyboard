@@ -130,7 +130,7 @@
       }
     }
   },
-  "run": "./keybind-plugin",
+  "run": "./keyboard-plugin",
   "consumes": {
     "events": [
       {"pattern": "_platform.collection.updated"},
