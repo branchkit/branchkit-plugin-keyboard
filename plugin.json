@@ -1,7 +1,7 @@
 {
   "id": "keyboard",
   "name": "Keyboard",
-  "capabilities": ["input"],
+  "privileges": ["input"],
   "version": "1.0.0",
   "description": "Global hotkey capture, keybind registry, and input simulation.",
   "author": "BranchKit",
