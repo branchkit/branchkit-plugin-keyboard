@@ -235,27 +235,20 @@ func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
 	return RegistrySnapshot{Entries: entries, ListenUp: listenUp}
 }
 
-// --- TOML overrides ---
+// --- User overrides ---
 
-func loadUserKeybindOverrides(path string) map[string]string {
-	if path == "" {
-		return make(map[string]string)
-	}
-	return loadOverridesFromTOML(path)
+func loadUserKeybindOverrides() map[string]string {
+	return loadOverridesFromCollection()
 }
 
-func saveUserKeybindOverrides(overrides map[string]string, path string) {
-	if path == "" {
-		return
-	}
-	saveOverridesToTOML(overrides, path)
+func saveUserKeybindOverrides(overrides map[string]string) {
+	saveOverridesToCollection(overrides)
 }
 
 // --- Registry build ---
 
 func buildRegistry(
 	keybindsByPlugin map[string]map[string]string,
-	overridesTomlPath string,
 ) InternalRegistry {
 	reg := newRegistry()
 
@@ -286,7 +279,7 @@ func buildRegistry(
 	}
 
 	// 2. User TOML overrides (always win)
-	userOverrides := loadUserKeybindOverrides(overridesTomlPath)
+	userOverrides := loadUserKeybindOverrides()
 	for comboStr, action := range userOverrides {
 		combo, ok := parseCombo(comboStr)
 		if !ok {

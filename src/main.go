@@ -16,7 +16,6 @@ import (
 
 type PluginState struct {
 	KeybindsByPlugin  map[string]map[string]string
-	OverridesTomlPath string
 	Registry          InternalRegistry
 	RemappingCombo    string // empty = not remapping
 	KeysError         string // error message shown on next Keys tab render, then cleared
@@ -36,14 +35,13 @@ func newPluginState() *PluginState {
 }
 
 func (ps *PluginState) rebuild() RegistrySnapshot {
-	ps.Registry = buildRegistry(ps.KeybindsByPlugin, ps.OverridesTomlPath)
+	ps.Registry = buildRegistry(ps.KeybindsByPlugin)
 	return ps.Registry.toSnapshot()
 }
 
 // --- Request types ---
 
 type BuildRegistryRequest struct {
-	OverridesTomlPath string `json:"overrides_toml_path"`
 }
 
 type StartRemapRequest struct {
@@ -118,7 +116,6 @@ func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	state.KeybindsByPlugin = keybindsByPlugin
-	state.OverridesTomlPath = req.OverridesTomlPath
 	snapshot := state.rebuild()
 
 	return snapshot, nil
@@ -162,7 +159,7 @@ func handleRemap(req *RemapRequest) (any, error) {
 
 // applyRemap performs the core remap logic. Caller must hold mu.Lock().
 func applyRemap(oldCombo, newCombo string, isHold bool) SnapshotWithControl {
-	overrides := loadUserKeybindOverrides(state.OverridesTomlPath)
+	overrides := loadUserKeybindOverrides()
 
 	if isHold {
 		downAction := findActionForCombo(&state.Registry, oldCombo+" DOWN")
@@ -187,7 +184,7 @@ func applyRemap(oldCombo, newCombo string, isHold bool) SnapshotWithControl {
 		}
 	}
 
-	saveUserKeybindOverrides(overrides, state.OverridesTomlPath)
+	saveUserKeybindOverrides(overrides)
 	state.RemappingCombo = ""
 	snapshot := state.rebuild()
 
@@ -251,7 +248,7 @@ func handleCancelRemap(_ *struct{}) (any, error) {
 func handleReset(req *ResetRequest) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	overrides := loadUserKeybindOverrides(state.OverridesTomlPath)
+	overrides := loadUserKeybindOverrides()
 
 	var action string
 	if req.IsHold {
@@ -276,7 +273,7 @@ func handleReset(req *ResetRequest) (any, error) {
 		}
 	}
 
-	saveUserKeybindOverrides(overrides, state.OverridesTomlPath)
+	saveUserKeybindOverrides(overrides)
 	snapshot := state.rebuild()
 
 	return SnapshotWithControl{
@@ -291,7 +288,7 @@ func handleReset(req *ResetRequest) (any, error) {
 func handleResetAll(_ *struct{}) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()
-	removeOverridesFile(state.OverridesTomlPath)
+	saveUserKeybindOverrides(nil)
 	snapshot := state.rebuild()
 
 	return SnapshotWithControl{
@@ -597,7 +594,6 @@ func main() {
 		} else {
 			mu.Lock()
 			state.KeybindsByPlugin = storeResp.Data
-			state.OverridesTomlPath = filepath.Join(os.Getenv("BRANCHKIT_APP_SUPPORT"), "keybinds.toml")
 			snapshot := state.rebuild()
 			mu.Unlock()
 

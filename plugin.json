@@ -97,6 +97,10 @@
         "preset": "data",
         "description": "Global hotkey bindings mapping key combos to actions."
       },
+      "plugin.keyboard.overrides": {
+        "preset": "data",
+        "description": "User keybind overrides (combo → action remaps)."
+      },
       "keycodes": {
         "preset": "named_entities",
         "fields": [

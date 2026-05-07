@@ -1,25 +1,67 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"os"
-	"sort"
 	"strings"
 
 	shared "github.com/branchkit/plugin-sdk-go"
 )
 
-// Minimal TOML parser for the keybinds.toml file format:
-//   [overrides]
-//   "key" = "value"
+// loadOverridesFromCollection reads user keybind overrides from the collection system.
+// Falls back to migrating from the legacy keybinds.toml file.
+func loadOverridesFromCollection() map[string]string {
+	if plugin == nil {
+		return make(map[string]string)
+	}
+	rec, err := plugin.Get("plugin.keyboard.overrides", "singleton")
+	if err != nil {
+		shared.Logf("keyboard", "overrides collection read error: %v", err)
+		return make(map[string]string)
+	}
+	if rec != nil {
+		var overrides map[string]string
+		if err := json.Unmarshal(rec.Payload, &overrides); err != nil {
+			shared.Logf("keyboard", "overrides collection parse error: %v", err)
+			return make(map[string]string)
+		}
+		return overrides
+	}
+	return migrateOverridesFromFile()
+}
 
-func loadOverridesFromTOML(path string) map[string]string {
+func migrateOverridesFromFile() map[string]string {
+	appSupport := os.Getenv("BRANCHKIT_APP_SUPPORT")
+	if appSupport == "" {
+		return make(map[string]string)
+	}
+	path := appSupport + "/keybinds.toml"
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return make(map[string]string)
 	}
-	return parseSimpleTOML(string(data))
+	overrides := parseSimpleTOML(string(data))
+	if len(overrides) > 0 {
+		shared.Logf("keyboard", "migrated keybinds.toml → plugin.keyboard.overrides collection")
+		saveOverridesToCollection(overrides)
+	}
+	return overrides
 }
+
+func saveOverridesToCollection(overrides map[string]string) {
+	if plugin == nil {
+		return
+	}
+	if len(overrides) == 0 {
+		plugin.Delete("plugin.keyboard.overrides", "singleton")
+		return
+	}
+	if err := plugin.Put("plugin.keyboard.overrides", "singleton", overrides); err != nil {
+		shared.Logf("keyboard", "failed to save overrides: %v", err)
+	}
+}
+
+// --- Legacy TOML parsing (used only for migration) ---
 
 func parseSimpleTOML(content string) map[string]string {
 	result := make(map[string]string)
@@ -68,37 +110,3 @@ func unquoteTOML(s string) string {
 	return s
 }
 
-func saveOverridesToTOML(overrides map[string]string, path string) {
-	if len(overrides) == 0 {
-		_ = os.Remove(path)
-		return
-	}
-
-	var b strings.Builder
-	b.WriteString("[overrides]\n")
-
-	keys := make([]string, 0, len(overrides))
-	for k := range overrides {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, key := range keys {
-		value := overrides[key]
-		escapedKey := strings.ReplaceAll(key, `\`, `\\`)
-		escapedKey = strings.ReplaceAll(escapedKey, `"`, `\"`)
-		escapedValue := strings.ReplaceAll(value, `\`, `\\`)
-		escapedValue = strings.ReplaceAll(escapedValue, `"`, `\"`)
-		fmt.Fprintf(&b, "\"%s\" = \"%s\"\n", escapedKey, escapedValue)
-	}
-
-	if err := os.WriteFile(path, []byte(b.String()), 0644); err != nil {
-		shared.Logf("keyboard", "failed to write keybinds.toml: %v", err)
-	}
-}
-
-func removeOverridesFile(path string) {
-	if path != "" {
-		_ = os.Remove(path)
-	}
-}
