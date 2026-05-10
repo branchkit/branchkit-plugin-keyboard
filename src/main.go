@@ -611,12 +611,12 @@ func main() {
 	// Subscribe to events (actuator→plugin notifications)
 	plugin.On("_platform.collection.updated", func(params json.RawMessage) {
 		var payload struct {
-			Store string `json:"store"`
+			Collection string `json:"collection"`
 		}
 		if err := json.Unmarshal(params, &payload); err != nil {
 			return
 		}
-		switch payload.Store {
+		switch payload.Collection {
 		case "keycodes":
 			refreshKeycodesFromCollection()
 			return
