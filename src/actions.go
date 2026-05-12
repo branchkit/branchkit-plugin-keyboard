@@ -17,6 +17,18 @@ func logErr(action string, err error) {
 	}
 }
 
+func holdPhase(req *shared.OnActionRequest) string {
+	if req.Phase == nil {
+		return ""
+	}
+	switch *req.Phase {
+	case "start", "stop":
+		return *req.Phase
+	default:
+		return ""
+	}
+}
+
 // Param structs (TypeParams, KeyByNameParams, …) live in actions_gen.go,
 // generated from plugin.json's action_types block. Edit that and re-run
 // `just gen-plugins` — do not hand-declare these structs here.
@@ -47,6 +59,18 @@ func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
+	if phase := holdPhase(req); phase != "" {
+		code, ok := resolveKeyCode(p.Name)
+		if !ok {
+			return nil, nil
+		}
+		if phase == "start" {
+			startHold(code, p.Modifiers)
+		} else {
+			stopHold(code, p.Modifiers)
+		}
+		return nil, nil
+	}
 	// "text" strategy: paste text equivalent instead of key event (when no modifiers)
 	if p.Strategy != nil && *p.Strategy == KeyByNameStrategyText && len(p.Modifiers) == 0 {
 		if textEquiv := keyTextEquivalent(p.Name); textEquiv != "" {
@@ -67,6 +91,14 @@ func handleInputKey(req *shared.OnActionRequest) (any, error) {
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
 	}
+	if phase := holdPhase(req); phase != "" {
+		if phase == "start" {
+			startHold(p.Code, nil)
+		} else {
+			stopHold(p.Code, nil)
+		}
+		return nil, nil
+	}
 	logErr("input.key", plugin.Call("input.press_key", map[string]any{"code": p.Code}, nil))
 	return nil, nil
 }
@@ -75,6 +107,18 @@ func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
 	var p ShortcutByNameParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
+	}
+	if phase := holdPhase(req); phase != "" {
+		code, ok := resolveKeyCode(p.Name)
+		if !ok {
+			return nil, nil
+		}
+		if phase == "start" {
+			startHold(code, p.Modifiers)
+		} else {
+			stopHold(code, p.Modifiers)
+		}
+		return nil, nil
 	}
 	params := map[string]any{"name": p.Name}
 	if len(p.Modifiers) > 0 {
@@ -88,6 +132,14 @@ func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
 	var p ShortcutParams
 	if err := req.UnmarshalParams(&p); err != nil {
 		return nil, err
+	}
+	if phase := holdPhase(req); phase != "" {
+		if phase == "start" {
+			startHold(p.Code, p.Modifiers)
+		} else {
+			stopHold(p.Code, p.Modifiers)
+		}
+		return nil, nil
 	}
 	params := map[string]any{"code": p.Code}
 	if len(p.Modifiers) > 0 {

@@ -578,6 +578,9 @@ func loadAndPushModifiers(p *shared.Plugin) {
 func main() {
 	plugin = shared.NewPlugin()
 
+	// Load system key repeat settings for hold-to-repeat support
+	repeatCfg = loadRepeatConfig(plugin)
+
 	// Push initial data to actuator stores
 	loadAndPushKeycodes(plugin)
 	loadAndPushLayoutCharacters(plugin)
