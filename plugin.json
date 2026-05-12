@@ -15,7 +15,7 @@
     },
     "key_by_name": {
       "label": "Press Key",
-      "modes": ["repeat"],
+      "modes": ["hold", "repeat"],
       "fields": [
         { "key": "name", "label": "Key Name", "placeholder": "return", "field_type": "string", "required": true },
         { "key": "modifiers", "label": "Modifiers", "field_type": "string[]", "required": false },
@@ -24,14 +24,14 @@
     },
     "key": {
       "label": "Press Key (Raw Keycode)",
-      "modes": ["repeat"],
+      "modes": ["hold", "repeat"],
       "fields": [
         { "key": "code", "label": "Keycode", "field_type": "int", "required": true }
       ]
     },
     "shortcut_by_name": {
       "label": "Keyboard Shortcut",
-      "modes": ["repeat"],
+      "modes": ["hold", "repeat"],
       "fields": [
         { "key": "name", "label": "Key Name", "placeholder": "s", "field_type": "string", "required": true },
         { "key": "modifiers", "label": "Modifiers", "placeholder": "cmd", "field_type": "string[]", "required": true },
@@ -40,7 +40,7 @@
     },
     "shortcut": {
       "label": "Keyboard Shortcut (Raw Keycode)",
-      "modes": ["repeat"],
+      "modes": ["hold", "repeat"],
       "fields": [
         { "key": "code", "label": "Keycode", "field_type": "int", "required": true },
         { "key": "modifiers", "label": "Modifiers", "field_type": "string[]", "required": true }
@@ -48,7 +48,7 @@
     },
     "raw_key": {
       "label": "Raw Key Event",
-      "modes": ["repeat"],
+      "modes": ["hold", "repeat"],
       "fields": [
         { "key": "code", "label": "Keycode", "field_type": "int", "required": true },
         { "key": "direction", "label": "Direction", "placeholder": "click", "field_type": "enum", "enum_values": ["click", "press", "release"], "required": false },

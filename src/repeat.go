@@ -75,7 +75,7 @@ func pressRawKey(code int, direction string) {
 	}, nil))
 }
 
-func startHold(code int, mods []string) {
+func startHold(code int, mods []string, repeat bool) {
 	mu.Lock()
 	prev := activeHold
 	id := holdSeq.Add(1)
@@ -91,7 +91,9 @@ func startHold(code int, mods []string) {
 	pressModifiers(mods, "press")
 	pressRawKey(code, "press")
 
-	go runRepeatLoop(ctx, id, code)
+	if repeat {
+		go runRepeatLoop(ctx, id, code)
+	}
 }
 
 func stopHold(code int, mods []string) {

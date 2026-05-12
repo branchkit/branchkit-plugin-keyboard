@@ -22,7 +22,7 @@ func holdPhase(req *shared.OnActionRequest) string {
 		return ""
 	}
 	switch *req.Phase {
-	case "start", "stop":
+	case "start", "repeat", "stop":
 		return *req.Phase
 	default:
 		return ""
@@ -64,9 +64,12 @@ func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
 		if !ok {
 			return nil, nil
 		}
-		if phase == "start" {
-			startHold(code, p.Modifiers)
-		} else {
+		switch phase {
+		case "start":
+			startHold(code, p.Modifiers, false)
+		case "repeat":
+			startHold(code, p.Modifiers, true)
+		default:
 			stopHold(code, p.Modifiers)
 		}
 		return nil, nil
@@ -92,9 +95,12 @@ func handleInputKey(req *shared.OnActionRequest) (any, error) {
 		return nil, err
 	}
 	if phase := holdPhase(req); phase != "" {
-		if phase == "start" {
-			startHold(p.Code, nil)
-		} else {
+		switch phase {
+		case "start":
+			startHold(p.Code, nil, false)
+		case "repeat":
+			startHold(p.Code, nil, true)
+		default:
 			stopHold(p.Code, nil)
 		}
 		return nil, nil
@@ -113,9 +119,12 @@ func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
 		if !ok {
 			return nil, nil
 		}
-		if phase == "start" {
-			startHold(code, p.Modifiers)
-		} else {
+		switch phase {
+		case "start":
+			startHold(code, p.Modifiers, false)
+		case "repeat":
+			startHold(code, p.Modifiers, true)
+		default:
 			stopHold(code, p.Modifiers)
 		}
 		return nil, nil
@@ -134,9 +143,12 @@ func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
 		return nil, err
 	}
 	if phase := holdPhase(req); phase != "" {
-		if phase == "start" {
-			startHold(p.Code, p.Modifiers)
-		} else {
+		switch phase {
+		case "start":
+			startHold(p.Code, p.Modifiers, false)
+		case "repeat":
+			startHold(p.Code, p.Modifiers, true)
+		default:
 			stopHold(p.Code, p.Modifiers)
 		}
 		return nil, nil
