@@ -22,10 +22,46 @@ type holdState struct {
 }
 
 var (
-	activeHold *holdState
-	holdSeq    atomic.Uint64
-	repeatCfg  repeatConfig
+	activeHold    *holdState
+	holdSeq       atomic.Uint64
+	repeatCfg     repeatConfig
+	heldModifiers []string // modifier names held via hold mode (injected into key actions)
 )
+
+func isModifierKey(code int) bool {
+	switch code {
+	case 55, 54, 56, 60, 58, 61, 59, 62:
+		return true
+	}
+	return false
+}
+
+func modifierNameForCode(code int) string {
+	switch code {
+	case 55, 54:
+		return "cmd"
+	case 56, 60:
+		return "shift"
+	case 58, 61:
+		return "opt"
+	case 59, 62:
+		return "ctrl"
+	}
+	return ""
+}
+
+// activeModifiers returns any modifiers currently held via hold mode.
+// Called by action handlers to inject held modifiers into key actions.
+func activeModifiers() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if len(heldModifiers) == 0 {
+		return nil
+	}
+	result := make([]string, len(heldModifiers))
+	copy(result, heldModifiers)
+	return result
+}
 
 var modifierKeyCodes = map[string]int{
 	"cmd": 55, "command": 55,
@@ -76,6 +112,18 @@ func pressRawKey(code int, direction string) {
 }
 
 func startHold(code int, mods []string, repeat bool) {
+	// Modifier keys are tracked virtually — they get injected into
+	// subsequent key actions rather than sent as raw events (which
+	// would be undone by the actuator's lift_modifiers).
+	if isModifierKey(code) {
+		modName := modifierNameForCode(code)
+		mu.Lock()
+		heldModifiers = append(heldModifiers, modName)
+		mu.Unlock()
+		shared.Logf("keyboard", "hold modifier: %s", modName)
+		return
+	}
+
 	mu.Lock()
 	prev := activeHold
 	id := holdSeq.Add(1)
@@ -97,6 +145,20 @@ func startHold(code int, mods []string, repeat bool) {
 }
 
 func stopHold(code int, mods []string) {
+	if isModifierKey(code) {
+		modName := modifierNameForCode(code)
+		mu.Lock()
+		for i, m := range heldModifiers {
+			if m == modName {
+				heldModifiers = append(heldModifiers[:i], heldModifiers[i+1:]...)
+				break
+			}
+		}
+		mu.Unlock()
+		shared.Logf("keyboard", "release modifier: %s", modName)
+		return
+	}
+
 	mu.Lock()
 	h := activeHold
 	if h != nil {

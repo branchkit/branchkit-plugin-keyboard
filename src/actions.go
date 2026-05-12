@@ -33,8 +33,24 @@ func holdPhase(req *shared.OnActionRequest) string {
 // generated from plugin.json's action_types block. Edit that and re-run
 // `just gen-plugins` — do not hand-declare these structs here.
 
-// buttonOrLeft returns the resolved button name, defaulting to "left"
-// when the pointer is nil or empty.
+func mergeModifiers(explicit []string, held []string) []string {
+	if len(held) == 0 {
+		return explicit
+	}
+	seen := make(map[string]bool, len(explicit))
+	for _, m := range explicit {
+		seen[strings.ToLower(m)] = true
+	}
+	merged := make([]string, len(explicit))
+	copy(merged, explicit)
+	for _, m := range held {
+		if !seen[strings.ToLower(m)] {
+			merged = append(merged, m)
+		}
+	}
+	return merged
+}
+
 func buttonOrLeft(b *ClickButton) string {
 	if b == nil || *b == "" {
 		return "left"
@@ -81,9 +97,10 @@ func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
 			return nil, nil
 		}
 	}
+	mods := mergeModifiers(p.Modifiers, activeModifiers())
 	params := map[string]any{"name": p.Name}
-	if len(p.Modifiers) > 0 {
-		params["modifiers"] = p.Modifiers
+	if len(mods) > 0 {
+		params["modifiers"] = mods
 	}
 	logErr("input.key_by_name", plugin.Call("input.press_key", params, nil))
 	return nil, nil
@@ -105,7 +122,11 @@ func handleInputKey(req *shared.OnActionRequest) (any, error) {
 		}
 		return nil, nil
 	}
-	logErr("input.key", plugin.Call("input.press_key", map[string]any{"code": p.Code}, nil))
+	keyParams := map[string]any{"code": p.Code}
+	if held := activeModifiers(); len(held) > 0 {
+		keyParams["modifiers"] = held
+	}
+	logErr("input.key", plugin.Call("input.press_key", keyParams, nil))
 	return nil, nil
 }
 
@@ -129,9 +150,10 @@ func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
 		}
 		return nil, nil
 	}
+	mods := mergeModifiers(p.Modifiers, activeModifiers())
 	params := map[string]any{"name": p.Name}
-	if len(p.Modifiers) > 0 {
-		params["modifiers"] = p.Modifiers
+	if len(mods) > 0 {
+		params["modifiers"] = mods
 	}
 	logErr("input.shortcut_by_name", plugin.Call("input.press_key", params, nil))
 	return nil, nil
@@ -153,9 +175,10 @@ func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
 		}
 		return nil, nil
 	}
+	mods := mergeModifiers(p.Modifiers, activeModifiers())
 	params := map[string]any{"code": p.Code}
-	if len(p.Modifiers) > 0 {
-		params["modifiers"] = p.Modifiers
+	if len(mods) > 0 {
+		params["modifiers"] = mods
 	}
 	logErr("input.shortcut", plugin.Call("input.press_key", params, nil))
 	return nil, nil
