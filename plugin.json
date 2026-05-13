@@ -130,6 +130,7 @@
       "layout_characters": {
         "preset": "data",
         "merge": "authoritative",
+        "writers": "introducer_only",
         "description": "Typeable characters for the active keyboard layout."
       },
       "keys": {
