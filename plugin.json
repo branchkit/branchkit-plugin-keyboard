@@ -3,6 +3,7 @@
   "name": "Keyboard",
   "privileges": ["input"],
   "version": "1.0.0",
+  "min_api_version": "0.1.0",
   "description": "Global hotkey capture, keybind registry, and input simulation.",
   "author": "BranchKit",
   "action_prefix": "input",
