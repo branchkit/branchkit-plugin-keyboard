@@ -70,26 +70,6 @@ type OkResponse struct {
 	OK bool `json:"ok"`
 }
 
-// ControlDirectives tells the actuator's generic proxy to perform platform
-// side effects (send control signals, trigger store rebuilds).
-type ControlDirectives struct {
-	Signals       []string `json:"signals,omitempty"`
-	RebuildStores []string `json:"rebuild_stores,omitempty"`
-}
-
-// OkWithControl is an OkResponse with optional _control directives.
-type OkWithControl struct {
-	OK      bool               `json:"ok"`
-	Control *ControlDirectives `json:"_control,omitempty"`
-}
-
-// SnapshotWithControl is a RegistrySnapshot with optional _control directives.
-type SnapshotWithControl struct {
-	Entries       []RegistryEntry    `json:"entries"`
-	ListenUp      []string           `json:"listen_up"`
-	Control       *ControlDirectives `json:"_control,omitempty"`
-}
-
 // --- Globals ---
 
 var (
@@ -142,12 +122,8 @@ func handleStartRemap(req *StartRemapRequest) (any, error) {
 	defer mu.Unlock()
 	state.RemappingCombo = req.Combo
 
-	return OkWithControl{
-		OK: true,
-		Control: &ControlDirectives{
-			Signals: []string{"keybind:pause"},
-		},
-	}, nil
+	plugin.ControlSignal("keybind:pause")
+	return OkResponse{OK: true}, nil
 }
 
 func handleRemap(req *RemapRequest) (any, error) {
@@ -158,7 +134,7 @@ func handleRemap(req *RemapRequest) (any, error) {
 }
 
 // applyRemap performs the core remap logic. Caller must hold mu.Lock().
-func applyRemap(oldCombo, newCombo string, isHold bool) SnapshotWithControl {
+func applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapshot {
 	overrides := loadUserKeybindOverrides()
 
 	if isHold {
@@ -188,14 +164,8 @@ func applyRemap(oldCombo, newCombo string, isHold bool) SnapshotWithControl {
 	state.RemappingCombo = ""
 	snapshot := state.rebuild()
 
-	return SnapshotWithControl{
-		Entries:  snapshot.Entries,
-		ListenUp: snapshot.ListenUp,
-		Control: &ControlDirectives{
-			Signals:       []string{"keybind:resume"},
-			RebuildStores: []string{"keybinds"},
-		},
-	}
+	plugin.ControlSignal("keybind:resume")
+	return snapshot
 }
 
 func handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
@@ -206,10 +176,8 @@ func handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		state.RemappingCombo = ""
-		return OkWithControl{
-			OK:      true,
-			Control: &ControlDirectives{Signals: []string{"keybind:resume"}},
-		}, nil
+		plugin.ControlSignal("keybind:resume")
+		return OkResponse{OK: true}, nil
 	}
 
 	// Bare modifier or unknown key → no-op
@@ -237,12 +205,8 @@ func handleCancelRemap(_ *struct{}) (any, error) {
 	defer mu.Unlock()
 	state.RemappingCombo = ""
 
-	return OkWithControl{
-		OK: true,
-		Control: &ControlDirectives{
-			Signals: []string{"keybind:resume"},
-		},
-	}, nil
+	plugin.ControlSignal("keybind:resume")
+	return OkResponse{OK: true}, nil
 }
 
 func handleReset(req *ResetRequest) (any, error) {
@@ -276,13 +240,7 @@ func handleReset(req *ResetRequest) (any, error) {
 	saveUserKeybindOverrides(overrides)
 	snapshot := state.rebuild()
 
-	return SnapshotWithControl{
-		Entries:  snapshot.Entries,
-		ListenUp: snapshot.ListenUp,
-		Control: &ControlDirectives{
-			RebuildStores: []string{"keybinds"},
-		},
-	}, nil
+	return snapshot, nil
 }
 
 func handleResetAll(_ *struct{}) (any, error) {
@@ -291,27 +249,17 @@ func handleResetAll(_ *struct{}) (any, error) {
 	saveUserKeybindOverrides(nil)
 	snapshot := state.rebuild()
 
-	return SnapshotWithControl{
-		Entries:  snapshot.Entries,
-		ListenUp: snapshot.ListenUp,
-		Control: &ControlDirectives{
-			RebuildStores: []string{"keybinds"},
-		},
-	}, nil
+	return snapshot, nil
 }
 
 func handleStartCapture(_ *struct{}) (any, error) {
-	return OkWithControl{
-		OK:      true,
-		Control: &ControlDirectives{Signals: []string{"keybind:pause"}},
-	}, nil
+	plugin.ControlSignal("keybind:pause")
+	return OkResponse{OK: true}, nil
 }
 
 func handleStopCapture(_ *struct{}) (any, error) {
-	return OkWithControl{
-		OK:      true,
-		Control: &ControlDirectives{Signals: []string{"keybind:resume"}},
-	}, nil
+	plugin.ControlSignal("keybind:resume")
+	return OkResponse{OK: true}, nil
 }
 
 // --- Settings rendering helpers ---
