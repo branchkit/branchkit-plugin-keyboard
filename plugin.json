@@ -105,6 +105,9 @@
       },
       "plugin.keyboard.overrides": {
         "preset": "data",
+        "cardinality": "singleton",
+        "id_strategy": { "type": "singleton" },
+        "writers": "introducer_only",
         "description": "User keybind overrides (combo → action remaps)."
       },
       "keycodes": {
