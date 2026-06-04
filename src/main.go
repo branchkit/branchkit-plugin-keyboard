@@ -341,11 +341,16 @@ func loadAndPushKeycodes(p *shared.Plugin) {
 		Name string `json:"name"`
 		Code uint16 `json:"code"`
 	}
-	entries := make([]keycodeEntry, 0, len(keycodes))
+	// `keycodes` declares feeds_matching: as_named_entities with
+	// key_field: "name" — each record's id is its name.
+	records := make([]toolkit.Record, 0, len(keycodes))
 	for name, code := range keycodes {
-		entries = append(entries, keycodeEntry{Name: name, Code: code})
+		records = append(records, toolkit.Record{
+			ID:      name,
+			Payload: keycodeEntry{Name: name, Code: code},
+		})
 	}
-	if err := toolkit.PushCollection(p, "keycodes", entries); err != nil {
+	if err := toolkit.ReplaceCollection(p, "keycodes", records); err != nil {
 		shared.Logf("keyboard", "Failed to push keycodes store: %v", err)
 		return
 	}
@@ -452,8 +457,10 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 	state.LayoutCharacters = chars
 	mu.Unlock()
 
-	// Push to layout_characters store via RPC
-	if err := toolkit.PushCollection(p, "layout_characters", chars); err != nil {
+	// `layout_characters` is a singleton — one record holds the whole
+	// physical-name → layout-character map. Consumers (voice plugin's
+	// fetchLayoutCharacters) read the singleton's payload as a flat map.
+	if err := p.Put("layout_characters", "singleton", chars); err != nil {
 		shared.Logf("keyboard", "Failed to push layout_characters store: %v", err)
 		return
 	}
@@ -475,20 +482,24 @@ func loadAndPushKeys(p *shared.Plugin) {
 		return
 	}
 
-	// Push as array of objects matching entry_schema: {spoken, key}
+	// `keys` declares feeds_matching: as_named_entities with
+	// key_field: "spoken" — each record's id is its spoken form.
 	type keyEntry struct {
 		Spoken string `json:"spoken"`
 		Key    string `json:"key"`
 	}
-	arr := make([]keyEntry, 0, len(entries))
+	records := make([]toolkit.Record, 0, len(entries))
 	for spoken, key := range entries {
-		arr = append(arr, keyEntry{Spoken: spoken, Key: key})
+		records = append(records, toolkit.Record{
+			ID:      spoken,
+			Payload: keyEntry{Spoken: spoken, Key: key},
+		})
 	}
-	if err := toolkit.PushCollection(p, "keys", arr); err != nil {
+	if err := toolkit.ReplaceCollection(p, "keys", records); err != nil {
 		shared.Logf("keyboard", "Failed to push keys collection: %v", err)
 		return
 	}
-	shared.Logf("keyboard", "Pushed %d entries to keys collection", len(arr))
+	shared.Logf("keyboard", "Pushed %d entries to keys collection", len(records))
 }
 
 // loadAndPushModifiers loads spoken modifier names from data/modifiers.json
@@ -505,20 +516,24 @@ func loadAndPushModifiers(p *shared.Plugin) {
 		return
 	}
 
-	// Push as array of objects matching entry_schema: {spoken, key}
+	// `modifiers` declares feeds_matching: as_named_entities with
+	// key_field: "spoken" — each record's id is its spoken form.
 	type modEntry struct {
 		Spoken string `json:"spoken"`
 		Key    string `json:"key"`
 	}
-	arr := make([]modEntry, 0, len(entries))
+	records := make([]toolkit.Record, 0, len(entries))
 	for spoken, key := range entries {
-		arr = append(arr, modEntry{Spoken: spoken, Key: key})
+		records = append(records, toolkit.Record{
+			ID:      spoken,
+			Payload: modEntry{Spoken: spoken, Key: key},
+		})
 	}
-	if err := toolkit.PushCollection(p, "modifiers", arr); err != nil {
+	if err := toolkit.ReplaceCollection(p, "modifiers", records); err != nil {
 		shared.Logf("keyboard", "Failed to push modifiers collection: %v", err)
 		return
 	}
-	shared.Logf("keyboard", "Pushed %d entries to modifiers collection", len(arr))
+	shared.Logf("keyboard", "Pushed %d entries to modifiers collection", len(records))
 }
 
 // --- Startup ---
