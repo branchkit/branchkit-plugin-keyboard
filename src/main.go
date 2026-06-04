@@ -79,18 +79,45 @@ var (
 
 var plugin *shared.Plugin
 
+// fetchKeybindsByPlugin reads the keybinds collection from the actuator
+// and regroups the per-record shape into a per-plugin map.
+//
+// Phase 3.3: keybinds migrated from a Keyed-merge contributions map
+// (`{plugin_id: {combo: action}}`) to per-record state.put with
+// namespaced ids (each record `{id, plugin_id, combo, action}`). This
+// helper restores the per-plugin map the rest of the plugin's logic
+// (buildRegistry, applyRemap, etc.) was already coded against.
+func fetchKeybindsByPlugin() (map[string]map[string]string, error) {
+	var storeResp struct {
+		Data []struct {
+			PluginID string `json:"plugin_id"`
+			Combo    string `json:"combo"`
+			Action   string `json:"action"`
+		} `json:"data"`
+	}
+	if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+		return nil, err
+	}
+	out := make(map[string]map[string]string)
+	for _, r := range storeResp.Data {
+		if r.PluginID == "" || r.Combo == "" {
+			continue
+		}
+		if out[r.PluginID] == nil {
+			out[r.PluginID] = make(map[string]string)
+		}
+		out[r.PluginID][r.Combo] = r.Action
+	}
+	return out, nil
+}
+
 // --- RPC handlers ---
 
 func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
-	// Read keybinds from the shared store via RPC
-	var storeResp struct {
-		Data map[string]map[string]string `json:"data"`
-	}
-	keybindsByPlugin := make(map[string]map[string]string)
-	if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+	keybindsByPlugin, err := fetchKeybindsByPlugin()
+	if err != nil {
 		shared.Logf("keyboard", "failed to read store: %v", err)
-	} else {
-		keybindsByPlugin = storeResp.Data
+		keybindsByPlugin = make(map[string]map[string]string)
 	}
 
 	mu.Lock()
@@ -551,26 +578,21 @@ func main() {
 	loadAndPushModifiers(plugin)
 
 	// Initial keybind registration — read store, build snapshot, register with platform
-	{
-		var storeResp struct {
-			Data map[string]map[string]string `json:"data"`
-		}
-		if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
-			shared.Logf("keyboard", "failed to read keybinds store: %v", err)
-		} else {
-			mu.Lock()
-			state.KeybindsByPlugin = storeResp.Data
-			snapshot := state.rebuild()
-			mu.Unlock()
+	if kbp, err := fetchKeybindsByPlugin(); err != nil {
+		shared.Logf("keyboard", "failed to read keybinds store: %v", err)
+	} else {
+		mu.Lock()
+		state.KeybindsByPlugin = kbp
+		snapshot := state.rebuild()
+		mu.Unlock()
 
-			regBody := struct {
-				Snapshot any `json:"snapshot"`
-			}{Snapshot: snapshot}
-			if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
-				shared.Logf("keyboard", "keybinds.register failed: %v", err)
-			} else {
-				shared.Logf("keyboard", "Initial keybind registration complete")
-			}
+		regBody := struct {
+			Snapshot any `json:"snapshot"`
+		}{Snapshot: snapshot}
+		if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
+			shared.Logf("keyboard", "keybinds.register failed: %v", err)
+		} else {
+			shared.Logf("keyboard", "Initial keybind registration complete")
 		}
 	}
 
@@ -592,15 +614,13 @@ func main() {
 			return
 		}
 		// Re-fetch keybinds from actuator
-		var storeResp struct {
-			Data map[string]map[string]string `json:"data"`
-		}
-		if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+		kbp, err := fetchKeybindsByPlugin()
+		if err != nil {
 			shared.Logf("keyboard", "store update: failed to read keybinds: %v", err)
 			return
 		}
 		mu.Lock()
-		state.KeybindsByPlugin = storeResp.Data
+		state.KeybindsByPlugin = kbp
 		snapshot := state.rebuild()
 		mu.Unlock()
 
