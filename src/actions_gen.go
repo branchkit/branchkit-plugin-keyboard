@@ -7,8 +7,8 @@ package main
 type ClickButton string
 
 const (
-	ClickButtonLeft ClickButton = "left"
-	ClickButtonRight ClickButton = "right"
+	ClickButtonLeft   ClickButton = "left"
+	ClickButtonRight  ClickButton = "right"
 	ClickButtonMiddle ClickButton = "middle"
 )
 
@@ -21,15 +21,15 @@ type ClickParams struct {
 type ClipboardAction string
 
 const (
-	ClipboardActionCopy ClipboardAction = "copy"
+	ClipboardActionCopy  ClipboardAction = "copy"
 	ClipboardActionPaste ClipboardAction = "paste"
-	ClipboardActionSet ClipboardAction = "set"
+	ClipboardActionSet   ClipboardAction = "set"
 )
 
 // ClipboardParams is the params shape for action "input.clipboard (Clipboard)".
 type ClipboardParams struct {
 	Action ClipboardAction `json:"action"`
-	Text *string `json:"text,omitempty"`
+	Text   *string         `json:"text,omitempty"`
 }
 
 // KeyParams is the params shape for action "input.key (Press Key (Raw Keycode))".
@@ -42,22 +42,22 @@ type KeyByNameStrategy string
 
 const (
 	KeyByNameStrategyKeyEvent KeyByNameStrategy = "key_event"
-	KeyByNameStrategyText KeyByNameStrategy = "text"
+	KeyByNameStrategyText     KeyByNameStrategy = "text"
 )
 
 // KeyByNameParams is the params shape for action "input.key_by_name (Press Key)".
 type KeyByNameParams struct {
-	Name string `json:"name"`
-	Modifiers []string `json:"modifiers,omitempty"`
-	Strategy *KeyByNameStrategy `json:"strategy,omitempty"`
+	Name      string             `json:"name"`
+	Modifiers []string           `json:"modifiers,omitempty"`
+	Strategy  *KeyByNameStrategy `json:"strategy,omitempty"`
 }
 
 // MouseDownButton is a generated enum type.
 type MouseDownButton string
 
 const (
-	MouseDownButtonLeft MouseDownButton = "left"
-	MouseDownButtonRight MouseDownButton = "right"
+	MouseDownButtonLeft   MouseDownButton = "left"
+	MouseDownButtonRight  MouseDownButton = "right"
 	MouseDownButtonMiddle MouseDownButton = "middle"
 )
 
@@ -70,8 +70,8 @@ type MouseDownParams struct {
 type MouseUpButton string
 
 const (
-	MouseUpButtonLeft MouseUpButton = "left"
-	MouseUpButtonRight MouseUpButton = "right"
+	MouseUpButtonLeft   MouseUpButton = "left"
+	MouseUpButtonRight  MouseUpButton = "right"
 	MouseUpButtonMiddle MouseUpButton = "middle"
 )
 
@@ -90,25 +90,25 @@ type MoveParams struct {
 type RawKeyDirection string
 
 const (
-	RawKeyDirectionClick RawKeyDirection = "click"
-	RawKeyDirectionPress RawKeyDirection = "press"
+	RawKeyDirectionClick   RawKeyDirection = "click"
+	RawKeyDirectionPress   RawKeyDirection = "press"
 	RawKeyDirectionRelease RawKeyDirection = "release"
 )
 
 // RawKeyParams is the params shape for action "input.raw_key (Raw Key Event)".
 type RawKeyParams struct {
-	Code int `json:"code"`
+	Code      int              `json:"code"`
 	Direction *RawKeyDirection `json:"direction,omitempty"`
-	Down *bool `json:"down,omitempty"`
+	Down      *bool            `json:"down,omitempty"`
 }
 
 // ScrollDirection is a generated enum type.
 type ScrollDirection string
 
 const (
-	ScrollDirectionUp ScrollDirection = "up"
-	ScrollDirectionDown ScrollDirection = "down"
-	ScrollDirectionLeft ScrollDirection = "left"
+	ScrollDirectionUp    ScrollDirection = "up"
+	ScrollDirectionDown  ScrollDirection = "down"
+	ScrollDirectionLeft  ScrollDirection = "left"
 	ScrollDirectionRight ScrollDirection = "right"
 )
 
@@ -116,20 +116,20 @@ const (
 type ScrollUnit string
 
 const (
-	ScrollUnitLine ScrollUnit = "line"
+	ScrollUnitLine  ScrollUnit = "line"
 	ScrollUnitPixel ScrollUnit = "pixel"
 )
 
 // ScrollParams is the params shape for action "input.scroll (Scroll)".
 type ScrollParams struct {
 	Direction ScrollDirection `json:"direction"`
-	Unit *ScrollUnit `json:"unit,omitempty"`
-	Amount *int `json:"amount,omitempty"`
+	Unit      *ScrollUnit     `json:"unit,omitempty"`
+	Amount    *int            `json:"amount,omitempty"`
 }
 
 // ShortcutParams is the params shape for action "input.shortcut (Keyboard Shortcut (Raw Keycode))".
 type ShortcutParams struct {
-	Code int `json:"code"`
+	Code      int      `json:"code"`
 	Modifiers []string `json:"modifiers"`
 }
 
@@ -138,18 +138,17 @@ type ShortcutByNameStrategy string
 
 const (
 	ShortcutByNameStrategyKeyEvent ShortcutByNameStrategy = "key_event"
-	ShortcutByNameStrategyText ShortcutByNameStrategy = "text"
+	ShortcutByNameStrategyText     ShortcutByNameStrategy = "text"
 )
 
 // ShortcutByNameParams is the params shape for action "input.shortcut_by_name (Keyboard Shortcut)".
 type ShortcutByNameParams struct {
-	Name string `json:"name"`
-	Modifiers []string `json:"modifiers"`
-	Strategy *ShortcutByNameStrategy `json:"strategy,omitempty"`
+	Name      string                  `json:"name"`
+	Modifiers []string                `json:"modifiers"`
+	Strategy  *ShortcutByNameStrategy `json:"strategy,omitempty"`
 }
 
 // TypeParams is the params shape for action "input.type (Type Text)".
 type TypeParams struct {
 	Text string `json:"text"`
 }
-

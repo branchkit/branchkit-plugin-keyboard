@@ -38,4 +38,3 @@ func saveOverridesToCollection(overrides map[string]string) {
 		shared.Logf("keyboard", "failed to save overrides: %v", err)
 	}
 }
-

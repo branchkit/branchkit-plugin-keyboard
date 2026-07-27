@@ -15,12 +15,12 @@ import (
 // --- Plugin state ---
 
 type PluginState struct {
-	KeybindsByPlugin  map[string]map[string]string
-	Registry          InternalRegistry
-	RemappingCombo    string // empty = not remapping
-	KeysError         string // error message shown on next Keys tab render, then cleared
+	KeybindsByPlugin map[string]map[string]string
+	Registry         InternalRegistry
+	RemappingCombo   string // empty = not remapping
+	KeysError        string // error message shown on next Keys tab render, then cleared
 	// Key names: physical key name → keycode (loaded from data/key_names_macos.json)
-	KeyNamesMerged   map[string]uint16
+	KeyNamesMerged map[string]uint16
 	// Layout: cached from GET /v1/native/keyboard-layout at startup
 	LayoutName       string            // e.g. "U.S."
 	LayoutMappings   map[string]string // keycode (as string) → character
@@ -574,7 +574,7 @@ func main() {
 	// Push initial data to actuator stores
 	loadAndPushKeycodes(plugin)
 	loadAndPushLayoutCharacters(plugin)
-	loadAndPushKeys(plugin)      // depends on layout_characters for enrichment
+	loadAndPushKeys(plugin) // depends on layout_characters for enrichment
 	loadAndPushModifiers(plugin)
 
 	// Initial keybind registration — read store, build snapshot, register with platform

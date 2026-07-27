@@ -65,7 +65,7 @@ func activeModifiers() []string {
 
 var modifierKeyCodes = map[string]int{
 	"cmd": 55, "command": 55,
-	"shift": 56,
+	"shift":  56,
 	"option": 58, "opt": 58, "alt": 58,
 	"ctrl": 59, "control": 59,
 	"right_cmd": 54, "right_shift": 60, "right_option": 61, "right_ctrl": 62,

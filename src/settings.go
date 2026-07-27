@@ -27,7 +27,6 @@ type keybindGroupView struct {
 	Rows       []keybindRowView
 }
 
-
 func renderSettings(ps *PluginState, search string) string {
 	// Group entries by (key, modifiers) ignoring event type
 	type comboGroupKey struct {
