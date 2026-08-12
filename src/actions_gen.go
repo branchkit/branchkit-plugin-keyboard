@@ -3,6 +3,8 @@
 
 package main
 
+import shared "github.com/branchkit/plugin-sdk-go"
+
 // ClickButton is a generated enum type.
 type ClickButton string
 
@@ -15,6 +17,11 @@ const (
 // ClickParams is the params shape for action "input.click (Mouse Click)".
 type ClickParams struct {
 	Button *ClickButton `json:"button,omitempty"`
+}
+
+// HandleClick registers a typed handler for action "input.click (Mouse Click)".
+func HandleClick(p *shared.Plugin, fn func(ClickParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.click", fn)
 }
 
 // ClipboardAction is a generated enum type.
@@ -32,9 +39,19 @@ type ClipboardParams struct {
 	Text   *string         `json:"text,omitempty"`
 }
 
+// HandleClipboard registers a typed handler for action "input.clipboard (Clipboard)".
+func HandleClipboard(p *shared.Plugin, fn func(ClipboardParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.clipboard", fn)
+}
+
 // KeyParams is the params shape for action "input.key (Press Key (Raw Keycode))".
 type KeyParams struct {
 	Code int `json:"code"`
+}
+
+// HandleKey registers a typed handler for action "input.key (Press Key (Raw Keycode))".
+func HandleKey(p *shared.Plugin, fn func(KeyParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.key", fn)
 }
 
 // KeyByNameStrategy is a generated enum type.
@@ -52,6 +69,11 @@ type KeyByNameParams struct {
 	Strategy  *KeyByNameStrategy `json:"strategy,omitempty"`
 }
 
+// HandleKeyByName registers a typed handler for action "input.key_by_name (Press Key)".
+func HandleKeyByName(p *shared.Plugin, fn func(KeyByNameParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.key_by_name", fn)
+}
+
 // MouseDownButton is a generated enum type.
 type MouseDownButton string
 
@@ -64,6 +86,11 @@ const (
 // MouseDownParams is the params shape for action "input.mouse_down (Mouse Button Down)".
 type MouseDownParams struct {
 	Button *MouseDownButton `json:"button,omitempty"`
+}
+
+// HandleMouseDown registers a typed handler for action "input.mouse_down (Mouse Button Down)".
+func HandleMouseDown(p *shared.Plugin, fn func(MouseDownParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.mouse_down", fn)
 }
 
 // MouseUpButton is a generated enum type.
@@ -80,10 +107,20 @@ type MouseUpParams struct {
 	Button *MouseUpButton `json:"button,omitempty"`
 }
 
+// HandleMouseUp registers a typed handler for action "input.mouse_up (Mouse Button Up)".
+func HandleMouseUp(p *shared.Plugin, fn func(MouseUpParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.mouse_up", fn)
+}
+
 // MoveParams is the params shape for action "input.move (Move Cursor)".
 type MoveParams struct {
 	X int `json:"x"`
 	Y int `json:"y"`
+}
+
+// HandleMove registers a typed handler for action "input.move (Move Cursor)".
+func HandleMove(p *shared.Plugin, fn func(MoveParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.move", fn)
 }
 
 // RawKeyDirection is a generated enum type.
@@ -100,6 +137,11 @@ type RawKeyParams struct {
 	Code      int              `json:"code"`
 	Direction *RawKeyDirection `json:"direction,omitempty"`
 	Down      *bool            `json:"down,omitempty"`
+}
+
+// HandleRawKey registers a typed handler for action "input.raw_key (Raw Key Event)".
+func HandleRawKey(p *shared.Plugin, fn func(RawKeyParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.raw_key", fn)
 }
 
 // ScrollDirection is a generated enum type.
@@ -127,10 +169,20 @@ type ScrollParams struct {
 	Amount    *int            `json:"amount,omitempty"`
 }
 
+// HandleScroll registers a typed handler for action "input.scroll (Scroll)".
+func HandleScroll(p *shared.Plugin, fn func(ScrollParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.scroll", fn)
+}
+
 // ShortcutParams is the params shape for action "input.shortcut (Keyboard Shortcut (Raw Keycode))".
 type ShortcutParams struct {
 	Code      int      `json:"code"`
 	Modifiers []string `json:"modifiers"`
+}
+
+// HandleShortcut registers a typed handler for action "input.shortcut (Keyboard Shortcut (Raw Keycode))".
+func HandleShortcut(p *shared.Plugin, fn func(ShortcutParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.shortcut", fn)
 }
 
 // ShortcutByNameStrategy is a generated enum type.
@@ -148,7 +200,17 @@ type ShortcutByNameParams struct {
 	Strategy  *ShortcutByNameStrategy `json:"strategy,omitempty"`
 }
 
+// HandleShortcutByName registers a typed handler for action "input.shortcut_by_name (Keyboard Shortcut)".
+func HandleShortcutByName(p *shared.Plugin, fn func(ShortcutByNameParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.shortcut_by_name", fn)
+}
+
 // TypeParams is the params shape for action "input.type (Type Text)".
 type TypeParams struct {
 	Text string `json:"text"`
+}
+
+// HandleType registers a typed handler for action "input.type (Type Text)".
+func HandleType(p *shared.Plugin, fn func(TypeParams, *shared.OnActionRequest) (any, error)) {
+	shared.HandleActionTyped(p, "input.type", fn)
 }
