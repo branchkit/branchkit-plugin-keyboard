@@ -8,8 +8,9 @@ import (
 
 // --- on_action: input simulation via native API ---
 //
-// Each input.* action gets its own typed handler. The SDK demuxes by
-// req.Action via plugin.HandleAction(...) — see main().
+// Each input.* action gets its own typed handler, registered in main() via the
+// Handle<Action> registrars generated from plugin.json into actions_gen.go.
+// Params arrive already unmarshaled; the action string is never spelled here.
 
 func logErr(action string, err error) {
 	if err != nil {
@@ -58,11 +59,7 @@ func buttonOrLeft(b *ClickButton) string {
 	return string(*b)
 }
 
-func handleInputType(req *shared.OnActionRequest) (any, error) {
-	var p TypeParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputType(p TypeParams, req *shared.OnActionRequest) (any, error) {
 	if p.Text == "" {
 		return nil, nil
 	}
@@ -70,11 +67,7 @@ func handleInputType(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
-	var p KeyByNameParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputKeyByName(p KeyByNameParams, req *shared.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		code, ok := resolveKeyCode(p.Name)
 		if !ok {
@@ -106,11 +99,7 @@ func handleInputKeyByName(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputKey(req *shared.OnActionRequest) (any, error) {
-	var p KeyParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputKey(p KeyParams, req *shared.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		switch phase {
 		case "start":
@@ -130,11 +119,7 @@ func handleInputKey(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
-	var p ShortcutByNameParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputShortcutByName(p ShortcutByNameParams, req *shared.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		code, ok := resolveKeyCode(p.Name)
 		if !ok {
@@ -159,11 +144,7 @@ func handleInputShortcutByName(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
-	var p ShortcutParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputShortcut(p ShortcutParams, req *shared.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		switch phase {
 		case "start":
@@ -184,11 +165,7 @@ func handleInputShortcut(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputRawKey(req *shared.OnActionRequest) (any, error) {
-	var p RawKeyParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputRawKey(p RawKeyParams, req *shared.OnActionRequest) (any, error) {
 	direction := "click"
 	switch {
 	case p.Direction != nil:
@@ -202,20 +179,12 @@ func handleInputRawKey(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputClick(req *shared.OnActionRequest) (any, error) {
-	var p ClickParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputClick(p ClickParams, req *shared.OnActionRequest) (any, error) {
 	logErr("input.click", plugin.Call("input.click", map[string]any{"button": buttonOrLeft(p.Button)}, nil))
 	return nil, nil
 }
 
-func handleInputScroll(req *shared.OnActionRequest) (any, error) {
-	var p ScrollParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputScroll(p ScrollParams, req *shared.OnActionRequest) (any, error) {
 	params := map[string]any{"direction": string(p.Direction)}
 	if p.Unit != nil {
 		params["unit"] = string(*p.Unit)
@@ -227,20 +196,12 @@ func handleInputScroll(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputMove(req *shared.OnActionRequest) (any, error) {
-	var p MoveParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputMove(p MoveParams, req *shared.OnActionRequest) (any, error) {
 	logErr("input.move", plugin.Call("native.warp_cursor", map[string]any{"x": p.X, "y": p.Y}, nil))
 	return nil, nil
 }
 
-func handleInputMouseDown(req *shared.OnActionRequest) (any, error) {
-	var p MouseDownParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputMouseDown(p MouseDownParams, req *shared.OnActionRequest) (any, error) {
 	button := "left"
 	if p.Button != nil && *p.Button != "" {
 		button = string(*p.Button)
@@ -249,11 +210,7 @@ func handleInputMouseDown(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputMouseUp(req *shared.OnActionRequest) (any, error) {
-	var p MouseUpParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputMouseUp(p MouseUpParams, req *shared.OnActionRequest) (any, error) {
 	button := "left"
 	if p.Button != nil && *p.Button != "" {
 		button = string(*p.Button)
@@ -262,11 +219,7 @@ func handleInputMouseUp(req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputClipboard(req *shared.OnActionRequest) (any, error) {
-	var p ClipboardParams
-	if err := req.UnmarshalParams(&p); err != nil {
-		return nil, err
-	}
+func handleInputClipboard(p ClipboardParams, req *shared.OnActionRequest) (any, error) {
 	params := map[string]any{"action": string(p.Action)}
 	if p.Text != nil && *p.Text != "" {
 		params["text"] = *p.Text
