@@ -279,6 +279,38 @@ func handleResetAll(_ *struct{}) (any, error) {
 	return snapshot, nil
 }
 
+// resumeOrphanedKeybindPause releases a `keybind:pause` a previous process may
+// have left held.
+//
+// `keybind:pause` unregisters EVERY global hotkey — including Option+G and
+// Option+T, the tools you would reach for to recover. It is a global lease with
+// no owner, no refcount and no expiry: the platform side is a bare `paused`
+// bool (`actuator/src/host/hotkeys.rs`), and the only record that this plugin
+// holds it is `state.RemappingCombo` — which `handleStartCapture` does not even
+// set. So a crash between StartCapture and StopCapture leaves every hotkey dead,
+// and the fresh process, having no memory of the pause, never resumes.
+//
+// A fresh process is never mid-capture, so resuming is always right here. Same
+// shape as the browser plugin's boot-time tag release: the side that survives
+// the crash must own the release, and until the platform does, the plugin
+// releases at boot.
+//
+// macOS self-heals via a 30s auto-resume in the Swift shell
+// (`ControlMessageHandler.swift`) — a hazard recognized and patched on ONE
+// platform. Linux and Windows go through `host/mod.rs` straight to the bare
+// bool, with nothing to expire it. This closes that gap for both.
+//
+// Accepted race: the pause is global, so a resume issued here also releases a
+// capture the VOICE plugin has open at this instant, costing one keystroke the
+// user re-presses. That is strictly better than a permanently dead hotkey set —
+// and it is the argument for making this a session-bound lease released in
+// `cleanup_terminated_plugin`, the way effects already are. See
+// notes/PLAN_HANDROLL_REMEDIATION.md item 1.3.
+func resumeOrphanedKeybindPause() {
+	plugin.ControlSignal("keybind:resume")
+	shared.Logf("keyboard", "boot: released any orphaned keybind:pause")
+}
+
 func handleStartCapture(_ *struct{}) (any, error) {
 	plugin.ControlSignal("keybind:pause")
 	return OkResponse{OK: true}, nil
@@ -567,6 +599,11 @@ func loadAndPushModifiers(p *shared.Plugin) {
 
 func main() {
 	plugin = shared.NewPlugin()
+
+	// Release a keybind:pause a previous process may have stranded. Before the
+	// registration below, so a fresh process can't re-register into a set that
+	// is still globally paused.
+	resumeOrphanedKeybindPause()
 
 	// Load system key repeat settings for hold-to-repeat support
 	repeatCfg = loadRepeatConfig(plugin)
