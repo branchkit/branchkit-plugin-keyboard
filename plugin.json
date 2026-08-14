@@ -98,6 +98,14 @@
     }
   },
   "provides": {
+    "effects": [
+      {
+        "asserts": ["suppress_keybinds"],
+        "conflict_resolution": "exclusive_last_writer",
+        "user_visible_name": "Key Capture",
+        "user_visible_description": "Pauses global hotkeys while you record a new key combination in Settings, so the keys you press are captured instead of triggering commands."
+      }
+    ],
     "collections": {
       "keybinds": {
         "preset": "data",
