@@ -237,11 +237,13 @@ func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
 
 // --- User overrides ---
 
-func loadUserKeybindOverrides() map[string]string {
+// Var seams so handler tests can run the real remap/reset flows without a
+// live actuator behind plugin.Call.
+var loadUserKeybindOverrides = func() map[string]string {
 	return loadOverridesFromCollection()
 }
 
-func saveUserKeybindOverrides(overrides map[string]string) {
+var saveUserKeybindOverrides = func(overrides map[string]string) {
 	saveOverridesToCollection(overrides)
 }
 

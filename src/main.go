@@ -155,8 +155,11 @@ func handleStartRemap(req *StartRemapRequest) (any, error) {
 
 func handleRemap(req *RemapRequest) (any, error) {
 	mu.Lock()
-	defer mu.Unlock()
 	result := applyRemap(req.OldCombo, req.NewCombo, req.IsHold)
+	mu.Unlock()
+	// Outside the lock: registration is an RPC, and holding mu across a
+	// blocking call would stall every other handler on a slow actuator.
+	registerKeybinds(result)
 	return result, nil
 }
 
@@ -222,8 +225,9 @@ func handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 
 	// Valid combo → apply remap
 	mu.Lock()
-	defer mu.Unlock()
 	result := applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
+	mu.Unlock()
+	registerKeybinds(result)
 	return result, nil
 }
 
@@ -238,7 +242,6 @@ func handleCancelRemap(_ *struct{}) (any, error) {
 
 func handleReset(req *ResetRequest) (any, error) {
 	mu.Lock()
-	defer mu.Unlock()
 	overrides := loadUserKeybindOverrides()
 
 	var action string
@@ -266,15 +269,18 @@ func handleReset(req *ResetRequest) (any, error) {
 
 	saveUserKeybindOverrides(overrides)
 	snapshot := state.rebuild()
+	mu.Unlock()
+	registerKeybinds(snapshot)
 
 	return snapshot, nil
 }
 
 func handleResetAll(_ *struct{}) (any, error) {
 	mu.Lock()
-	defer mu.Unlock()
 	saveUserKeybindOverrides(nil)
 	snapshot := state.rebuild()
+	mu.Unlock()
+	registerKeybinds(snapshot)
 
 	return snapshot, nil
 }
@@ -292,6 +298,9 @@ func handleResetAll(_ *struct{}) (any, error) {
 // `cleanup_terminated_plugin` if this process dies mid-capture, on every
 // platform. No boot-time reconcile needed anymore for exactly that reason.
 func pauseKeybinds() {
+	if plugin == nil {
+		return
+	}
 	out, err := plugin.AssertEffect("suppress_keybinds")
 	if err != nil {
 		shared.Logf("keyboard", "suppress_keybinds assert failed: %v", err)
@@ -305,9 +314,37 @@ func pauseKeybinds() {
 }
 
 func resumeKeybinds() {
+	if plugin == nil {
+		return
+	}
 	if _, _, err := plugin.RetractEffect("suppress_keybinds"); err != nil {
 		shared.Logf("keyboard", "suppress_keybinds retract failed: %v", err)
 	}
+}
+
+// registerKeybinds pushes a rebuilt snapshot to the platform, which forwards
+// it to the shell's KeybindCapture as a `keybind:register` control message.
+//
+// Every path that CHANGES the effective bindings must call this, and until
+// 2026-08-14 the override paths didn't: remap and reset saved user overrides
+// to `plugin.keyboard.overrides` and rebuilt the LOCAL registry, but the only
+// re-registration trigger was the collection.updated subscription for the
+// base `keybinds` collection — overrides hit its `default: return`. So a
+// remap looked successful in Settings while the shell kept firing the OLD
+// combos until the next plugin restart. A test seam (var) so handler tests
+// can assert the registration actually happens.
+var registerKeybinds = func(snapshot RegistrySnapshot) {
+	if plugin == nil {
+		return
+	}
+	regBody := struct {
+		Snapshot any `json:"snapshot"`
+	}{Snapshot: snapshot}
+	if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
+		shared.Logf("keyboard", "keybinds.register failed: %v", err)
+		return
+	}
+	shared.Logf("keyboard", "re-registered keybinds after override change")
 }
 
 func handleStartCapture(_ *struct{}) (any, error) {
