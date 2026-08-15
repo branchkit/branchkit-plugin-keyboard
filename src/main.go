@@ -438,14 +438,16 @@ func loadAndPushKeycodes(p *shared.Plugin) {
 	}
 	// `keycodes` declares feeds_matching: as_named_entities with
 	// key_field: "name" — each record's id is its name.
-	records := make([]toolkit.Record, 0, len(keycodes))
+	records := make([]shared.CollectionPutEntry, 0, len(keycodes))
 	for name, code := range keycodes {
-		records = append(records, toolkit.Record{
-			ID:      name,
-			Payload: keycodeEntry{Name: name, Code: code},
-		})
+		raw, err := json.Marshal(keycodeEntry{Name: name, Code: code})
+		if err != nil {
+			shared.Logf("keyboard", "keycodes: marshal %q: %v", name, err)
+			return
+		}
+		records = append(records, shared.CollectionPutEntry{ID: name, Payload: raw})
 	}
-	if err := toolkit.ReplaceCollection(p, "keycodes", records); err != nil {
+	if _, err := p.Replace("keycodes", records, shared.ScopeCollection()); err != nil {
 		shared.Logf("keyboard", "Failed to push keycodes store: %v", err)
 		return
 	}
@@ -583,14 +585,16 @@ func loadAndPushKeys(p *shared.Plugin) {
 		Spoken string `json:"spoken"`
 		Key    string `json:"key"`
 	}
-	records := make([]toolkit.Record, 0, len(entries))
+	records := make([]shared.CollectionPutEntry, 0, len(entries))
 	for spoken, key := range entries {
-		records = append(records, toolkit.Record{
-			ID:      spoken,
-			Payload: keyEntry{Spoken: spoken, Key: key},
-		})
+		raw, err := json.Marshal(keyEntry{Spoken: spoken, Key: key})
+		if err != nil {
+			shared.Logf("keyboard", "keys: marshal %q: %v", spoken, err)
+			return
+		}
+		records = append(records, shared.CollectionPutEntry{ID: spoken, Payload: raw})
 	}
-	if err := toolkit.ReplaceCollection(p, "keys", records); err != nil {
+	if _, err := p.Replace("keys", records, shared.ScopeCollection()); err != nil {
 		shared.Logf("keyboard", "Failed to push keys collection: %v", err)
 		return
 	}
@@ -617,14 +621,16 @@ func loadAndPushModifiers(p *shared.Plugin) {
 		Spoken string `json:"spoken"`
 		Key    string `json:"key"`
 	}
-	records := make([]toolkit.Record, 0, len(entries))
+	records := make([]shared.CollectionPutEntry, 0, len(entries))
 	for spoken, key := range entries {
-		records = append(records, toolkit.Record{
-			ID:      spoken,
-			Payload: modEntry{Spoken: spoken, Key: key},
-		})
+		raw, err := json.Marshal(modEntry{Spoken: spoken, Key: key})
+		if err != nil {
+			shared.Logf("keyboard", "modifiers: marshal %q: %v", spoken, err)
+			return
+		}
+		records = append(records, shared.CollectionPutEntry{ID: spoken, Payload: raw})
 	}
-	if err := toolkit.ReplaceCollection(p, "modifiers", records); err != nil {
+	if _, err := p.Replace("modifiers", records, shared.ScopeCollection()); err != nil {
 		shared.Logf("keyboard", "Failed to push modifiers collection: %v", err)
 		return
 	}
