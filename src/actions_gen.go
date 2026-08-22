@@ -3,7 +3,7 @@
 
 package main
 
-import shared "github.com/branchkit/plugin-sdk-go"
+import "github.com/branchkit/plugin-sdk-go"
 
 // ClickButton is a generated enum type.
 type ClickButton string
@@ -20,8 +20,8 @@ type ClickParams struct {
 }
 
 // HandleClick registers a typed handler for action "input.click (Mouse Click)".
-func HandleClick(p *shared.Plugin, fn func(ClickParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.click", fn)
+func HandleClick(p *branchkit.Plugin, fn func(ClickParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.click", fn)
 }
 
 // ClipboardAction is a generated enum type.
@@ -40,8 +40,8 @@ type ClipboardParams struct {
 }
 
 // HandleClipboard registers a typed handler for action "input.clipboard (Clipboard)".
-func HandleClipboard(p *shared.Plugin, fn func(ClipboardParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.clipboard", fn)
+func HandleClipboard(p *branchkit.Plugin, fn func(ClipboardParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.clipboard", fn)
 }
 
 // KeyParams is the params shape for action "input.key (Press Key (Raw Keycode))".
@@ -50,8 +50,8 @@ type KeyParams struct {
 }
 
 // HandleKey registers a typed handler for action "input.key (Press Key (Raw Keycode))".
-func HandleKey(p *shared.Plugin, fn func(KeyParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.key", fn)
+func HandleKey(p *branchkit.Plugin, fn func(KeyParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.key", fn)
 }
 
 // KeyByNameStrategy is a generated enum type.
@@ -70,8 +70,8 @@ type KeyByNameParams struct {
 }
 
 // HandleKeyByName registers a typed handler for action "input.key_by_name (Press Key)".
-func HandleKeyByName(p *shared.Plugin, fn func(KeyByNameParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.key_by_name", fn)
+func HandleKeyByName(p *branchkit.Plugin, fn func(KeyByNameParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.key_by_name", fn)
 }
 
 // MouseDownButton is a generated enum type.
@@ -89,8 +89,8 @@ type MouseDownParams struct {
 }
 
 // HandleMouseDown registers a typed handler for action "input.mouse_down (Mouse Button Down)".
-func HandleMouseDown(p *shared.Plugin, fn func(MouseDownParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.mouse_down", fn)
+func HandleMouseDown(p *branchkit.Plugin, fn func(MouseDownParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.mouse_down", fn)
 }
 
 // MouseUpButton is a generated enum type.
@@ -108,8 +108,8 @@ type MouseUpParams struct {
 }
 
 // HandleMouseUp registers a typed handler for action "input.mouse_up (Mouse Button Up)".
-func HandleMouseUp(p *shared.Plugin, fn func(MouseUpParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.mouse_up", fn)
+func HandleMouseUp(p *branchkit.Plugin, fn func(MouseUpParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.mouse_up", fn)
 }
 
 // MoveParams is the params shape for action "input.move (Move Cursor)".
@@ -119,8 +119,8 @@ type MoveParams struct {
 }
 
 // HandleMove registers a typed handler for action "input.move (Move Cursor)".
-func HandleMove(p *shared.Plugin, fn func(MoveParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.move", fn)
+func HandleMove(p *branchkit.Plugin, fn func(MoveParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.move", fn)
 }
 
 // RawKeyDirection is a generated enum type.
@@ -140,8 +140,8 @@ type RawKeyParams struct {
 }
 
 // HandleRawKey registers a typed handler for action "input.raw_key (Raw Key Event)".
-func HandleRawKey(p *shared.Plugin, fn func(RawKeyParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.raw_key", fn)
+func HandleRawKey(p *branchkit.Plugin, fn func(RawKeyParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.raw_key", fn)
 }
 
 // ScrollDirection is a generated enum type.
@@ -170,8 +170,8 @@ type ScrollParams struct {
 }
 
 // HandleScroll registers a typed handler for action "input.scroll (Scroll)".
-func HandleScroll(p *shared.Plugin, fn func(ScrollParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.scroll", fn)
+func HandleScroll(p *branchkit.Plugin, fn func(ScrollParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.scroll", fn)
 }
 
 // ShortcutParams is the params shape for action "input.shortcut (Keyboard Shortcut (Raw Keycode))".
@@ -181,8 +181,8 @@ type ShortcutParams struct {
 }
 
 // HandleShortcut registers a typed handler for action "input.shortcut (Keyboard Shortcut (Raw Keycode))".
-func HandleShortcut(p *shared.Plugin, fn func(ShortcutParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.shortcut", fn)
+func HandleShortcut(p *branchkit.Plugin, fn func(ShortcutParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.shortcut", fn)
 }
 
 // ShortcutByNameStrategy is a generated enum type.
@@ -201,8 +201,8 @@ type ShortcutByNameParams struct {
 }
 
 // HandleShortcutByName registers a typed handler for action "input.shortcut_by_name (Keyboard Shortcut)".
-func HandleShortcutByName(p *shared.Plugin, fn func(ShortcutByNameParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.shortcut_by_name", fn)
+func HandleShortcutByName(p *branchkit.Plugin, fn func(ShortcutByNameParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.shortcut_by_name", fn)
 }
 
 // TypeParams is the params shape for action "input.type (Type Text)".
@@ -211,6 +211,6 @@ type TypeParams struct {
 }
 
 // HandleType registers a typed handler for action "input.type (Type Text)".
-func HandleType(p *shared.Plugin, fn func(TypeParams, *shared.OnActionRequest) (any, error)) {
-	shared.HandleActionTyped(p, "input.type", fn)
+func HandleType(p *branchkit.Plugin, fn func(TypeParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.type", fn)
 }

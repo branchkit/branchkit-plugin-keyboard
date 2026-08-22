@@ -14,11 +14,11 @@ import (
 
 func logErr(action string, err error) {
 	if err != nil {
-		shared.Logf("keyboard", "%s: %v", action, err)
+		branchkit.Logf("keyboard", "%s: %v", action, err)
 	}
 }
 
-func holdPhase(req *shared.OnActionRequest) string {
+func holdPhase(req *branchkit.OnActionRequest) string {
 	if req.Phase == nil {
 		return ""
 	}
@@ -59,7 +59,7 @@ func buttonOrLeft(b *ClickButton) string {
 	return string(*b)
 }
 
-func handleInputType(p TypeParams, req *shared.OnActionRequest) (any, error) {
+func handleInputType(p TypeParams, req *branchkit.OnActionRequest) (any, error) {
 	if p.Text == "" {
 		return nil, nil
 	}
@@ -67,7 +67,7 @@ func handleInputType(p TypeParams, req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputKeyByName(p KeyByNameParams, req *shared.OnActionRequest) (any, error) {
+func handleInputKeyByName(p KeyByNameParams, req *branchkit.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		code, ok := resolveKeyCode(p.Name)
 		if !ok {
@@ -99,7 +99,7 @@ func handleInputKeyByName(p KeyByNameParams, req *shared.OnActionRequest) (any, 
 	return nil, nil
 }
 
-func handleInputKey(p KeyParams, req *shared.OnActionRequest) (any, error) {
+func handleInputKey(p KeyParams, req *branchkit.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		switch phase {
 		case "start":
@@ -119,7 +119,7 @@ func handleInputKey(p KeyParams, req *shared.OnActionRequest) (any, error) {
 	return nil, nil
 }
 
-func handleInputShortcutByName(p ShortcutByNameParams, req *shared.OnActionRequest) (any, error) {
+func handleInputShortcutByName(p ShortcutByNameParams, req *branchkit.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		code, ok := resolveKeyCode(p.Name)
 		if !ok {
@@ -144,7 +144,7 @@ func handleInputShortcutByName(p ShortcutByNameParams, req *shared.OnActionReque
 	return nil, nil
 }
 
-func handleInputShortcut(p ShortcutParams, req *shared.OnActionRequest) (any, error) {
+func handleInputShortcut(p ShortcutParams, req *branchkit.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		switch phase {
 		case "start":
@@ -165,7 +165,7 @@ func handleInputShortcut(p ShortcutParams, req *shared.OnActionRequest) (any, er
 	return nil, nil
 }
 
-func handleInputRawKey(p RawKeyParams, req *shared.OnActionRequest) (any, error) {
+func handleInputRawKey(p RawKeyParams, req *branchkit.OnActionRequest) (any, error) {
 	direction := "click"
 	switch {
 	case p.Direction != nil:
@@ -179,12 +179,12 @@ func handleInputRawKey(p RawKeyParams, req *shared.OnActionRequest) (any, error)
 	return nil, nil
 }
 
-func handleInputClick(p ClickParams, req *shared.OnActionRequest) (any, error) {
+func handleInputClick(p ClickParams, req *branchkit.OnActionRequest) (any, error) {
 	logErr("input.click", plugin.Call("input.click", map[string]any{"button": buttonOrLeft(p.Button)}, nil))
 	return nil, nil
 }
 
-func handleInputScroll(p ScrollParams, req *shared.OnActionRequest) (any, error) {
+func handleInputScroll(p ScrollParams, req *branchkit.OnActionRequest) (any, error) {
 	params := map[string]any{"direction": string(p.Direction)}
 	if p.Unit != nil {
 		params["unit"] = string(*p.Unit)
@@ -196,12 +196,12 @@ func handleInputScroll(p ScrollParams, req *shared.OnActionRequest) (any, error)
 	return nil, nil
 }
 
-func handleInputMove(p MoveParams, req *shared.OnActionRequest) (any, error) {
+func handleInputMove(p MoveParams, req *branchkit.OnActionRequest) (any, error) {
 	logErr("input.move", plugin.Call("native.warp_cursor", map[string]any{"x": p.X, "y": p.Y}, nil))
 	return nil, nil
 }
 
-func handleInputMouseDown(p MouseDownParams, req *shared.OnActionRequest) (any, error) {
+func handleInputMouseDown(p MouseDownParams, req *branchkit.OnActionRequest) (any, error) {
 	button := "left"
 	if p.Button != nil && *p.Button != "" {
 		button = string(*p.Button)
@@ -210,7 +210,7 @@ func handleInputMouseDown(p MouseDownParams, req *shared.OnActionRequest) (any, 
 	return nil, nil
 }
 
-func handleInputMouseUp(p MouseUpParams, req *shared.OnActionRequest) (any, error) {
+func handleInputMouseUp(p MouseUpParams, req *branchkit.OnActionRequest) (any, error) {
 	button := "left"
 	if p.Button != nil && *p.Button != "" {
 		button = string(*p.Button)
@@ -219,7 +219,7 @@ func handleInputMouseUp(p MouseUpParams, req *shared.OnActionRequest) (any, erro
 	return nil, nil
 }
 
-func handleInputClipboard(p ClipboardParams, req *shared.OnActionRequest) (any, error) {
+func handleInputClipboard(p ClipboardParams, req *branchkit.OnActionRequest) (any, error) {
 	params := map[string]any{"action": string(p.Action)}
 	if p.Text != nil && *p.Text != "" {
 		params["text"] = *p.Text

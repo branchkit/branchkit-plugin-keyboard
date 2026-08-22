@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 
-	shared "github.com/branchkit/plugin-sdk-go"
+	"github.com/branchkit/plugin-sdk-go"
 )
 
 type KeybindSettingsData struct {
@@ -51,9 +51,9 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var2 string
-			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(shared.MethodPost("reset_all", ""))
+			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("reset_all", ""))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 23, Col: 106}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 23, Col: 109}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -115,9 +115,9 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var6 string
-					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("evt.preventDefault(); evt.stopPropagation(); " + shared.MethodPost("remap_keydown", fmt.Sprintf("{code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey, old_combo: %s, is_hold: %s}", string(row.ComboKeyJSON), string(row.IsHoldJSON))))
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("evt.preventDefault(); evt.stopPropagation(); " + branchkit.MethodPost("remap_keydown", fmt.Sprintf("{code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey, old_combo: %s, is_hold: %s}", string(row.ComboKeyJSON), string(row.IsHoldJSON))))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 42, Col: 311}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 42, Col: 314}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -128,9 +128,9 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var7 string
-					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(shared.MethodPost("cancel_remap", ""))
+					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("cancel_remap", ""))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 43, Col: 76}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 43, Col: 79}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -141,9 +141,9 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var8 string
-					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(shared.MethodPost("cancel_remap", ""))
+					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("cancel_remap", ""))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 45, Col: 100}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 45, Col: 103}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -172,9 +172,9 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var10 string
-					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(shared.MethodPost("start_remap", fmt.Sprintf("{combo: %s}", string(row.ComboKeyJSON))))
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("start_remap", fmt.Sprintf("{combo: %s}", string(row.ComboKeyJSON))))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 51, Col: 134}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 51, Col: 137}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -190,9 +190,9 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var11 string
-						templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(shared.MethodPost("reset", fmt.Sprintf("{combo_key: %s, is_hold: %s}", string(row.ComboKeyJSON), string(row.IsHoldJSON))))
+						templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("reset", fmt.Sprintf("{combo_key: %s, is_hold: %s}", string(row.ComboKeyJSON), string(row.IsHoldJSON))))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 57, Col: 146}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 57, Col: 149}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 						if templ_7745c5c3_Err != nil {

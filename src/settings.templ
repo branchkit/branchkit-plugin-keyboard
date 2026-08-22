@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	shared "github.com/branchkit/plugin-sdk-go"
+	"github.com/branchkit/plugin-sdk-go"
 )
 
 type KeybindSettingsData struct {
@@ -20,7 +20,7 @@ templ KeybindSettings(data KeybindSettingsData) {
 			<div>Source</div>
 			<div style="text-align: right;">
 				if data.HasOverrides {
-					<button style="font-size: 11px; padding: 2px 8px;" data-on:click={ shared.MethodPost("reset_all", "") }>Reset All</button>
+					<button style="font-size: 11px; padding: 2px 8px;" data-on:click={ branchkit.MethodPost("reset_all", "") }>Reset All</button>
 				}
 			</div>
 		</div>
@@ -39,22 +39,22 @@ templ KeybindSettings(data KeybindSettingsData) {
 								style="flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;"
 								id="remap-input"
 								data-init="document.getElementById('remap-input').focus()"
-								data-on:keydown={ "evt.preventDefault(); evt.stopPropagation(); " + shared.MethodPost("remap_keydown", fmt.Sprintf("{code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey, old_combo: %s, is_hold: %s}", string(row.ComboKeyJSON), string(row.IsHoldJSON))) }
-								data-on:blur__debounce.200ms={ shared.MethodPost("cancel_remap", "") }
+								data-on:keydown={ "evt.preventDefault(); evt.stopPropagation(); " + branchkit.MethodPost("remap_keydown", fmt.Sprintf("{code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey, old_combo: %s, is_hold: %s}", string(row.ComboKeyJSON), string(row.IsHoldJSON))) }
+								data-on:blur__debounce.200ms={ branchkit.MethodPost("cancel_remap", "") }
 							/>
-							<button class="icon-btn" title="Cancel" data-on:click={ shared.MethodPost("cancel_remap", "") }>&#10005;</button>
+							<button class="icon-btn" title="Cancel" data-on:click={ branchkit.MethodPost("cancel_remap", "") }>&#10005;</button>
 						} else {
 							<span style="font-family: 'SF Mono', monospace;">{ row.ComboDisplay }</span>
 							<button
 								class="icon-btn edit-btn"
 								title="Remap keybind"
-								data-on:click__debounce.500ms.leading={ shared.MethodPost("start_remap", fmt.Sprintf("{combo: %s}", string(row.ComboKeyJSON))) }
+								data-on:click__debounce.500ms.leading={ branchkit.MethodPost("start_remap", fmt.Sprintf("{combo: %s}", string(row.ComboKeyJSON))) }
 							>&#9998;</button>
 							if row.IsOverride {
 								<button
 									class="icon-btn"
 									title="Reset to default"
-									data-on:click={ shared.MethodPost("reset", fmt.Sprintf("{combo_key: %s, is_hold: %s}", string(row.ComboKeyJSON), string(row.IsHoldJSON))) }
+									data-on:click={ branchkit.MethodPost("reset", fmt.Sprintf("{combo_key: %s, is_hold: %s}", string(row.ComboKeyJSON), string(row.IsHoldJSON))) }
 								>&#x21ba;</button>
 							}
 						}

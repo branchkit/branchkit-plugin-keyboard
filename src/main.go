@@ -77,7 +77,7 @@ var (
 	state = newPluginState()
 )
 
-var plugin *shared.Plugin
+var plugin *branchkit.Plugin
 
 // fetchKeybindsByPlugin reads the keybinds collection from the actuator
 // and regroups the per-record shape into a per-plugin map.
@@ -116,7 +116,7 @@ func fetchKeybindsByPlugin() (map[string]map[string]string, error) {
 func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	keybindsByPlugin, err := fetchKeybindsByPlugin()
 	if err != nil {
-		shared.Logf("keyboard", "failed to read store: %v", err)
+		branchkit.Logf("keyboard", "failed to read store: %v", err)
 		keybindsByPlugin = make(map[string]map[string]string)
 	}
 
@@ -128,7 +128,7 @@ func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	return snapshot, nil
 }
 
-func handleRenderSettings(req *shared.RenderSettingsRequest) (any, error) {
+func handleRenderSettings(req *branchkit.RenderSettingsRequest) (any, error) {
 	var html string
 	search := strings.ToLower(req.Search)
 
@@ -141,7 +141,7 @@ func handleRenderSettings(req *shared.RenderSettingsRequest) (any, error) {
 		mu.Unlock()
 	}
 
-	return shared.RenderSettingsResponse{HTML: html}, nil
+	return branchkit.RenderSettingsResponse{HTML: html}, nil
 }
 
 func handleStartRemap(req *StartRemapRequest) (any, error) {
@@ -303,13 +303,13 @@ func pauseKeybinds() {
 	}
 	out, err := plugin.AssertEffect("suppress_keybinds")
 	if err != nil {
-		shared.Logf("keyboard", "suppress_keybinds assert failed: %v", err)
+		branchkit.Logf("keyboard", "suppress_keybinds assert failed: %v", err)
 		return
 	}
 	if !out.Enforced {
 		// Capture still proceeds — worst case a hotkey fires mid-capture,
 		// same as the pre-pause world — but say so, loudly enough to find.
-		shared.Logf("keyboard", "suppress_keybinds not enforced — captured keys may also trigger commands")
+		branchkit.Logf("keyboard", "suppress_keybinds not enforced — captured keys may also trigger commands")
 	}
 }
 
@@ -318,7 +318,7 @@ func resumeKeybinds() {
 		return
 	}
 	if _, _, err := plugin.RetractEffect("suppress_keybinds"); err != nil {
-		shared.Logf("keyboard", "suppress_keybinds retract failed: %v", err)
+		branchkit.Logf("keyboard", "suppress_keybinds retract failed: %v", err)
 	}
 }
 
@@ -341,10 +341,10 @@ var registerKeybinds = func(snapshot RegistrySnapshot) {
 		Snapshot any `json:"snapshot"`
 	}{Snapshot: snapshot}
 	if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
-		shared.Logf("keyboard", "keybinds.register failed: %v", err)
+		branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		return
 	}
-	shared.Logf("keyboard", "re-registered keybinds after override change")
+	branchkit.Logf("keyboard", "re-registered keybinds after override change")
 }
 
 func handleStartCapture(_ *struct{}) (any, error) {
@@ -414,16 +414,16 @@ func findActionForCombo(reg *InternalRegistry, comboStr string) string {
 // loadAndPushKeycodes loads key_names_macos.json from the plugin data dir,
 // stores in plugin state, and pushes to the keycodes store.
 // User overrides are handled by the platform collection override system.
-func loadAndPushKeycodes(p *shared.Plugin) {
+func loadAndPushKeycodes(p *branchkit.Plugin) {
 	dataPath := filepath.Join(toolkit.PluginDir(), "data", "key_names_macos.json")
 	data, err := os.ReadFile(dataPath)
 	if err != nil {
-		shared.Logf("keyboard", "Failed to read %s: %v", dataPath, err)
+		branchkit.Logf("keyboard", "Failed to read %s: %v", dataPath, err)
 		return
 	}
 	var keycodes map[string]uint16
 	if err := json.Unmarshal(data, &keycodes); err != nil {
-		shared.Logf("keyboard", "Failed to parse %s: %v", dataPath, err)
+		branchkit.Logf("keyboard", "Failed to parse %s: %v", dataPath, err)
 		return
 	}
 
@@ -438,17 +438,17 @@ func loadAndPushKeycodes(p *shared.Plugin) {
 	}
 	// `keycodes` declares feeds_matching: as_named_entities with
 	// key_field: "name" — each record's id is its name.
-	records := make([]shared.CollectionPutEntry, 0, len(keycodes))
+	records := make([]branchkit.CollectionPutEntry, 0, len(keycodes))
 	for name, code := range keycodes {
 		raw, err := json.Marshal(keycodeEntry{Name: name, Code: code})
 		if err != nil {
-			shared.Logf("keyboard", "keycodes: marshal %q: %v", name, err)
+			branchkit.Logf("keyboard", "keycodes: marshal %q: %v", name, err)
 			return
 		}
-		records = append(records, shared.CollectionPutEntry{ID: name, Payload: raw})
+		records = append(records, branchkit.CollectionPutEntry{ID: name, Payload: raw})
 	}
-	if _, err := p.Replace("keycodes", records, shared.ScopeCollection()); err != nil {
-		shared.Logf("keyboard", "Failed to push keycodes store: %v", err)
+	if _, err := p.Replace("keycodes", records, branchkit.ScopeCollection()); err != nil {
+		branchkit.Logf("keyboard", "Failed to push keycodes store: %v", err)
 		return
 	}
 
@@ -457,10 +457,10 @@ func loadAndPushKeycodes(p *shared.Plugin) {
 		Names map[string]uint16 `json:"names"`
 	}{Names: keycodes}
 	if err := p.Call("key_names.set", namesBody, nil); err != nil {
-		shared.Logf("keyboard", "Failed to set key_names cache: %v", err)
+		branchkit.Logf("keyboard", "Failed to set key_names cache: %v", err)
 	}
 
-	shared.Logf("keyboard", "Pushed %d keycodes to store", len(keycodes))
+	branchkit.Logf("keyboard", "Pushed %d keycodes to store", len(keycodes))
 }
 
 // refreshKeycodesFromCollection re-reads the keycodes collection (with overrides applied)
@@ -470,7 +470,7 @@ func refreshKeycodesFromCollection() {
 		Entries map[string]json.RawMessage `json:"entries"`
 	}
 	if err := plugin.Call("collection.get", map[string]string{"name": "keycodes"}, &resp); err != nil {
-		shared.Logf("keyboard", "failed to re-read keycodes collection: %v", err)
+		branchkit.Logf("keyboard", "failed to re-read keycodes collection: %v", err)
 		return
 	}
 	if resp.Entries == nil {
@@ -488,11 +488,11 @@ func refreshKeycodesFromCollection() {
 				if _, err3 := fmt.Sscanf(s, "%d", &n); err3 == nil {
 					v = uint16(n)
 				} else {
-					shared.Logf("keyboard", "skipping keycode entry %q: unparseable value %s", name, string(raw))
+					branchkit.Logf("keyboard", "skipping keycode entry %q: unparseable value %s", name, string(raw))
 					continue
 				}
 			} else {
-				shared.Logf("keyboard", "skipping keycode entry %q: unexpected value type %s", name, string(raw))
+				branchkit.Logf("keyboard", "skipping keycode entry %q: unexpected value type %s", name, string(raw))
 				continue
 			}
 		}
@@ -508,9 +508,9 @@ func refreshKeycodesFromCollection() {
 		Names map[string]uint16 `json:"names"`
 	}{Names: merged}
 	if err := plugin.Call("key_names.set", namesBody, nil); err != nil {
-		shared.Logf("keyboard", "failed to update key_names cache: %v", err)
+		branchkit.Logf("keyboard", "failed to update key_names cache: %v", err)
 	}
-	shared.Logf("keyboard", "refreshed %d keycodes from collection update", len(merged))
+	branchkit.Logf("keyboard", "refreshed %d keycodes from collection update", len(merged))
 }
 
 // buildLayoutCharacters joins keycodes with layout mappings to produce
@@ -530,7 +530,7 @@ func buildLayoutCharacters(keyNames map[string]uint16, layoutMappings map[string
 
 // loadAndPushLayoutCharacters fetches the keyboard layout from the actuator,
 // joins with keycodes, caches locally, and pushes the layout_characters store.
-func loadAndPushLayoutCharacters(p *shared.Plugin) {
+func loadAndPushLayoutCharacters(p *branchkit.Plugin) {
 	type layoutResp struct {
 		LayoutID   string            `json:"layout_id"`
 		LayoutName string            `json:"layout_name"`
@@ -538,7 +538,7 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 	}
 	var layout layoutResp
 	if err := p.Call("native.keyboard_layout", nil, &layout); err != nil {
-		shared.Logf("keyboard", "Failed to fetch keyboard layout: %v", err)
+		branchkit.Logf("keyboard", "Failed to fetch keyboard layout: %v", err)
 		return
 	}
 
@@ -558,24 +558,24 @@ func loadAndPushLayoutCharacters(p *shared.Plugin) {
 	// physical-name → layout-character map. Consumers (voice plugin's
 	// fetchLayoutCharacters) read the singleton's payload as a flat map.
 	if err := p.Put("layout_characters", "singleton", chars); err != nil {
-		shared.Logf("keyboard", "Failed to push layout_characters store: %v", err)
+		branchkit.Logf("keyboard", "Failed to push layout_characters store: %v", err)
 		return
 	}
-	shared.Logf("keyboard", "Pushed %d layout characters to store (layout: %s)",
+	branchkit.Logf("keyboard", "Pushed %d layout characters to store (layout: %s)",
 		len(chars), layout.LayoutID)
 }
 
 // loadAndPushKeys loads spoken key names from data/keys.json, enriches with
 // layout-specific character entries, and pushes to the "keys" collection.
-func loadAndPushKeys(p *shared.Plugin) {
+func loadAndPushKeys(p *branchkit.Plugin) {
 	data, err := os.ReadFile(filepath.Join(toolkit.PluginDir(), "data", "keys.json"))
 	if err != nil {
-		shared.Logf("keyboard", "Failed to read data/keys.json: %v", err)
+		branchkit.Logf("keyboard", "Failed to read data/keys.json: %v", err)
 		return
 	}
 	var entries map[string]string
 	if err := json.Unmarshal(data, &entries); err != nil {
-		shared.Logf("keyboard", "Failed to parse data/keys.json: %v", err)
+		branchkit.Logf("keyboard", "Failed to parse data/keys.json: %v", err)
 		return
 	}
 
@@ -585,33 +585,33 @@ func loadAndPushKeys(p *shared.Plugin) {
 		Spoken string `json:"spoken"`
 		Key    string `json:"key"`
 	}
-	records := make([]shared.CollectionPutEntry, 0, len(entries))
+	records := make([]branchkit.CollectionPutEntry, 0, len(entries))
 	for spoken, key := range entries {
 		raw, err := json.Marshal(keyEntry{Spoken: spoken, Key: key})
 		if err != nil {
-			shared.Logf("keyboard", "keys: marshal %q: %v", spoken, err)
+			branchkit.Logf("keyboard", "keys: marshal %q: %v", spoken, err)
 			return
 		}
-		records = append(records, shared.CollectionPutEntry{ID: spoken, Payload: raw})
+		records = append(records, branchkit.CollectionPutEntry{ID: spoken, Payload: raw})
 	}
-	if _, err := p.Replace("keys", records, shared.ScopeCollection()); err != nil {
-		shared.Logf("keyboard", "Failed to push keys collection: %v", err)
+	if _, err := p.Replace("keys", records, branchkit.ScopeCollection()); err != nil {
+		branchkit.Logf("keyboard", "Failed to push keys collection: %v", err)
 		return
 	}
-	shared.Logf("keyboard", "Pushed %d entries to keys collection", len(records))
+	branchkit.Logf("keyboard", "Pushed %d entries to keys collection", len(records))
 }
 
 // loadAndPushModifiers loads spoken modifier names from data/modifiers.json
 // and pushes to the "modifiers" collection.
-func loadAndPushModifiers(p *shared.Plugin) {
+func loadAndPushModifiers(p *branchkit.Plugin) {
 	data, err := os.ReadFile(filepath.Join(toolkit.PluginDir(), "data", "modifiers.json"))
 	if err != nil {
-		shared.Logf("keyboard", "Failed to read data/modifiers.json: %v", err)
+		branchkit.Logf("keyboard", "Failed to read data/modifiers.json: %v", err)
 		return
 	}
 	var entries map[string]string
 	if err := json.Unmarshal(data, &entries); err != nil {
-		shared.Logf("keyboard", "Failed to parse data/modifiers.json: %v", err)
+		branchkit.Logf("keyboard", "Failed to parse data/modifiers.json: %v", err)
 		return
 	}
 
@@ -621,26 +621,26 @@ func loadAndPushModifiers(p *shared.Plugin) {
 		Spoken string `json:"spoken"`
 		Key    string `json:"key"`
 	}
-	records := make([]shared.CollectionPutEntry, 0, len(entries))
+	records := make([]branchkit.CollectionPutEntry, 0, len(entries))
 	for spoken, key := range entries {
 		raw, err := json.Marshal(modEntry{Spoken: spoken, Key: key})
 		if err != nil {
-			shared.Logf("keyboard", "modifiers: marshal %q: %v", spoken, err)
+			branchkit.Logf("keyboard", "modifiers: marshal %q: %v", spoken, err)
 			return
 		}
-		records = append(records, shared.CollectionPutEntry{ID: spoken, Payload: raw})
+		records = append(records, branchkit.CollectionPutEntry{ID: spoken, Payload: raw})
 	}
-	if _, err := p.Replace("modifiers", records, shared.ScopeCollection()); err != nil {
-		shared.Logf("keyboard", "Failed to push modifiers collection: %v", err)
+	if _, err := p.Replace("modifiers", records, branchkit.ScopeCollection()); err != nil {
+		branchkit.Logf("keyboard", "Failed to push modifiers collection: %v", err)
 		return
 	}
-	shared.Logf("keyboard", "Pushed %d entries to modifiers collection", len(records))
+	branchkit.Logf("keyboard", "Pushed %d entries to modifiers collection", len(records))
 }
 
 // --- Startup ---
 
 func main() {
-	plugin = shared.NewPlugin()
+	plugin = branchkit.NewPlugin()
 
 	// Load system key repeat settings for hold-to-repeat support
 	repeatCfg = loadRepeatConfig(plugin)
@@ -653,7 +653,7 @@ func main() {
 
 	// Initial keybind registration — read store, build snapshot, register with platform
 	if kbp, err := fetchKeybindsByPlugin(); err != nil {
-		shared.Logf("keyboard", "failed to read keybinds store: %v", err)
+		branchkit.Logf("keyboard", "failed to read keybinds store: %v", err)
 	} else {
 		mu.Lock()
 		state.KeybindsByPlugin = kbp
@@ -664,9 +664,9 @@ func main() {
 			Snapshot any `json:"snapshot"`
 		}{Snapshot: snapshot}
 		if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
-			shared.Logf("keyboard", "keybinds.register failed: %v", err)
+			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		} else {
-			shared.Logf("keyboard", "Initial keybind registration complete")
+			branchkit.Logf("keyboard", "Initial keybind registration complete")
 		}
 	}
 
@@ -690,7 +690,7 @@ func main() {
 		// Re-fetch keybinds from actuator
 		kbp, err := fetchKeybindsByPlugin()
 		if err != nil {
-			shared.Logf("keyboard", "store update: failed to read keybinds: %v", err)
+			branchkit.Logf("keyboard", "store update: failed to read keybinds: %v", err)
 			return
 		}
 		mu.Lock()
@@ -703,29 +703,29 @@ func main() {
 			Snapshot any `json:"snapshot"`
 		}{Snapshot: snapshot}
 		if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
-			shared.Logf("keyboard", "keybinds.register failed: %v", err)
+			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		}
-		shared.Logf("keyboard", "rebuilt keybinds from store update")
+		branchkit.Logf("keyboard", "rebuilt keybinds from store update")
 	})
 
 	plugin.On("_platform.keyboard.layout_changed", func(params json.RawMessage) {
-		shared.Logf("keyboard", "layout changed — re-pushing layout_characters and keys")
+		branchkit.Logf("keyboard", "layout changed — re-pushing layout_characters and keys")
 		loadAndPushLayoutCharacters(plugin)
 		loadAndPushKeys(plugin) // re-enrich with new layout characters
 	})
 
 	// Register handlers (actuator→plugin requests)
-	shared.HandleTyped(plugin, "build_registry", handleBuildRegistry)
-	shared.HandleTyped(plugin, "render_settings", handleRenderSettings)
-	shared.HandleTyped(plugin, "start_remap", handleStartRemap)
-	shared.HandleTyped(plugin, "remap", handleRemap)
-	shared.HandleTyped(plugin, "cancel_remap", handleCancelRemap)
-	shared.HandleTyped(plugin, "reset", handleReset)
-	shared.HandleTyped(plugin, "reset_all", handleResetAll)
-	shared.HandleTyped(plugin, "start_capture", handleStartCapture)
-	shared.HandleTyped(plugin, "stop_capture", handleStopCapture)
-	shared.HandleTyped(plugin, "parse_key_event", handleParseKeyEvent)
-	shared.HandleTyped(plugin, "remap_keydown", handleRemapKeydown)
+	branchkit.HandleTyped(plugin, "build_registry", handleBuildRegistry)
+	branchkit.HandleTyped(plugin, "render_settings", handleRenderSettings)
+	branchkit.HandleTyped(plugin, "start_remap", handleStartRemap)
+	branchkit.HandleTyped(plugin, "remap", handleRemap)
+	branchkit.HandleTyped(plugin, "cancel_remap", handleCancelRemap)
+	branchkit.HandleTyped(plugin, "reset", handleReset)
+	branchkit.HandleTyped(plugin, "reset_all", handleResetAll)
+	branchkit.HandleTyped(plugin, "start_capture", handleStartCapture)
+	branchkit.HandleTyped(plugin, "stop_capture", handleStopCapture)
+	branchkit.HandleTyped(plugin, "parse_key_event", handleParseKeyEvent)
+	branchkit.HandleTyped(plugin, "remap_keydown", handleRemapKeydown)
 	// Per-action handlers (replaces the old single on_action switch).
 	HandleType(plugin, handleInputType)
 	HandleKeyByName(plugin, handleInputKeyByName)

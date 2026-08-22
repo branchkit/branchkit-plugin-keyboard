@@ -74,7 +74,7 @@ var modifierKeyCodes = map[string]int{
 
 const safetyTimeout = 30 * time.Second
 
-func loadRepeatConfig(p *shared.Plugin) repeatConfig {
+func loadRepeatConfig(p *branchkit.Plugin) repeatConfig {
 	cfg := repeatConfig{
 		InitialDelay:   500 * time.Millisecond,
 		RepeatInterval: 33 * time.Millisecond,
@@ -90,7 +90,7 @@ func loadRepeatConfig(p *shared.Plugin) repeatConfig {
 		cfg.RepeatInterval = time.Duration(float64(time.Second) / rate)
 	}
 
-	shared.Logf("keyboard", "repeat config: delay=%v interval=%v", cfg.InitialDelay, cfg.RepeatInterval)
+	branchkit.Logf("keyboard", "repeat config: delay=%v interval=%v", cfg.InitialDelay, cfg.RepeatInterval)
 	return cfg
 }
 
@@ -120,7 +120,7 @@ func startHold(code int, mods []string, repeat bool) {
 		mu.Lock()
 		heldModifiers = append(heldModifiers, modName)
 		mu.Unlock()
-		shared.Logf("keyboard", "hold modifier: %s", modName)
+		branchkit.Logf("keyboard", "hold modifier: %s", modName)
 		return
 	}
 
@@ -155,7 +155,7 @@ func stopHold(code int, mods []string) {
 			}
 		}
 		mu.Unlock()
-		shared.Logf("keyboard", "release modifier: %s", modName)
+		branchkit.Logf("keyboard", "release modifier: %s", modName)
 		return
 	}
 
