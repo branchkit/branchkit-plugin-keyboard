@@ -41,7 +41,7 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"settings-table-container\" class=\"settings-table\"><div class=\"table-header\"><div>Keybind</div><div>Action</div><div>Source</div><div style=\"text-align: right;\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"settings-table\"><div class=\"table-header\"><div>Keybind</div><div>Action</div><div>Source</div><div style=\"text-align: right;\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

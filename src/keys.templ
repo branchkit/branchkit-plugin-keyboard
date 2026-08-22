@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 templ KeysSettings(data keysTemplateData) {
-	<div id="settings-table-container" class="settings-table">
+	<div class="settings-table">
 		<div style="padding: 8px 20px; display: flex; align-items: center; justify-content: space-between;">
 			<span style="font-size: 11px; color: var(--text-dim);">{ fmt.Sprintf("%d", data.Count) } key names · Layout: { data.LayoutName }</span>
 		</div>

@@ -31,7 +31,7 @@ func KeysSettings(data keysTemplateData) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"settings-table-container\" class=\"settings-table\"><div style=\"padding: 8px 20px; display: flex; align-items: center; justify-content: space-between;\"><span style=\"font-size: 11px; color: var(--text-dim);\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"settings-table\"><div style=\"padding: 8px 20px; display: flex; align-items: center; justify-content: space-between;\"><span style=\"font-size: 11px; color: var(--text-dim);\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
