@@ -203,6 +203,13 @@
       }
     }
   },
+  "dev": {
+    "build": [
+      ["templ", "generate"],
+      ["go", "build", "-ldflags=-s -w", "-o", "../keyboard-plugin", "."]
+    ],
+    "build_dir": "src"
+  },
   "run": "./keyboard-plugin",
   "consumes": {
     "events": [
