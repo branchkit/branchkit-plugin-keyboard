@@ -18,7 +18,6 @@ type keybindRowView struct {
 	BadgeClass   string
 	SourceLabel  string
 	IsOverride   bool
-	IsHold       bool
 	IsHoldJSON   template.JS // "true" or "false" for safe JS embedding
 }
 
@@ -97,7 +96,6 @@ func renderSettings(ps *PluginState, search string) string {
 				BadgeClass:   ifStr(isOverride, "badge-user", "badge-core"),
 				SourceLabel:  sourceBadgeLabel(downEntry.Entry.Source),
 				IsOverride:   isOverride,
-				IsHold:       true,
 				IsHoldJSON:   "true",
 			})
 		} else {
@@ -127,7 +125,6 @@ func renderSettings(ps *PluginState, search string) string {
 					BadgeClass:   ifStr(isOverride, "badge-user", "badge-core"),
 					SourceLabel:  sourceBadgeLabel(e.Entry.Source),
 					IsOverride:   isOverride,
-					IsHold:       false,
 					IsHoldJSON:   "false",
 				})
 			}

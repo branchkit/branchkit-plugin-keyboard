@@ -22,9 +22,8 @@ type PluginState struct {
 	// Key names: physical key name → keycode (loaded from data/key_names_macos.json)
 	KeyNamesMerged map[string]uint16
 	// Layout: cached from GET /v1/native/keyboard-layout at startup
-	LayoutName       string            // e.g. "U.S."
-	LayoutMappings   map[string]string // keycode (as string) → character
-	LayoutCharacters map[string]string // physical key name → character (joined)
+	LayoutName     string            // e.g. "U.S."
+	LayoutMappings map[string]string // keycode (as string) → character
 }
 
 func newPluginState() *PluginState {
@@ -551,7 +550,6 @@ func loadAndPushLayoutCharacters(p *branchkit.Plugin) {
 	mu.Lock()
 	state.LayoutName = layout.LayoutName
 	state.LayoutMappings = layout.Mappings
-	state.LayoutCharacters = chars
 	mu.Unlock()
 
 	// `layout_characters` is a singleton — one record holds the whole
