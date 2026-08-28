@@ -22,17 +22,17 @@ func captureRegistrations(t *testing.T) *[]RegistrySnapshot {
 	got := &[]RegistrySnapshot{}
 	origRegister := registerKeybinds
 	origLoad, origSave := loadUserKeybindOverrides, saveUserKeybindOverrides
-	saved := map[string]string{}
+	saved := map[string]Binding{}
 	registerKeybinds = func(s RegistrySnapshot) { *got = append(*got, s) }
-	loadUserKeybindOverrides = func() map[string]string {
-		out := map[string]string{}
+	loadUserKeybindOverrides = func() map[string]Binding {
+		out := map[string]Binding{}
 		for k, v := range saved {
 			out[k] = v
 		}
 		return out
 	}
-	saveUserKeybindOverrides = func(o map[string]string) {
-		saved = map[string]string{}
+	saveUserKeybindOverrides = func(o map[string]Binding) {
+		saved = map[string]Binding{}
 		for k, v := range o {
 			saved[k] = v
 		}
@@ -49,8 +49,8 @@ func TestRemapRegistersTheNewBindings(t *testing.T) {
 	got := captureRegistrations(t)
 	mu.Lock()
 	state = newPluginState()
-	state.KeybindsByPlugin = map[string]map[string]string{
-		"voice": {"alt+h": "voice.help_toggle"},
+	state.KeybindsByPlugin = map[string]map[string]Binding{
+		"voice": {"alt+h": {Action: "voice.help_toggle"}},
 	}
 	state.rebuild()
 	mu.Unlock()
@@ -67,8 +67,8 @@ func TestRemapRegistersTheNewBindings(t *testing.T) {
 		t.Fatalf("remap must register exactly once, got %d — an unregistered "+
 			"remap leaves the shell firing the OLD combos", len(*got))
 	}
-	if a := findActionForCombo(&state.Registry, "alt+z"); a != "voice.help_toggle" {
-		t.Fatalf("registered snapshot must carry the remapped combo, alt+z -> %q", a)
+	if a := findActionForCombo(&state.Registry, "alt+z"); a.Action != "voice.help_toggle" {
+		t.Fatalf("registered snapshot must carry the remapped combo, alt+z -> %q", a.Action)
 	}
 }
 
@@ -77,8 +77,8 @@ func TestResetRegistersTheRestoredBindings(t *testing.T) {
 	got := captureRegistrations(t)
 	mu.Lock()
 	state = newPluginState()
-	state.KeybindsByPlugin = map[string]map[string]string{
-		"voice": {"alt+h": "voice.help_toggle"},
+	state.KeybindsByPlugin = map[string]map[string]Binding{
+		"voice": {"alt+h": {Action: "voice.help_toggle"}},
 	}
 	state.rebuild()
 	mu.Unlock()

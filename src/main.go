@@ -15,7 +15,7 @@ import (
 // --- Plugin state ---
 
 type PluginState struct {
-	KeybindsByPlugin map[string]map[string]string
+	KeybindsByPlugin map[string]map[string]Binding
 	Registry         InternalRegistry
 	RemappingCombo   string // empty = not remapping
 	KeysError        string // error message shown on next Keys tab render, then cleared
@@ -28,7 +28,7 @@ type PluginState struct {
 
 func newPluginState() *PluginState {
 	return &PluginState{
-		KeybindsByPlugin: make(map[string]map[string]string),
+		KeybindsByPlugin: make(map[string]map[string]Binding),
 		Registry:         newRegistry(),
 	}
 }
@@ -86,26 +86,27 @@ var plugin *branchkit.Plugin
 // namespaced ids (each record `{id, plugin_id, combo, action}`). This
 // helper restores the per-plugin map the rest of the plugin's logic
 // (buildRegistry, applyRemap, etc.) was already coded against.
-func fetchKeybindsByPlugin() (map[string]map[string]string, error) {
+func fetchKeybindsByPlugin() (map[string]map[string]Binding, error) {
 	var storeResp struct {
 		Data []struct {
-			PluginID string `json:"plugin_id"`
-			Combo    string `json:"combo"`
-			Action   string `json:"action"`
+			PluginID string          `json:"plugin_id"`
+			Combo    string          `json:"combo"`
+			Action   string          `json:"action"`
+			Params   json.RawMessage `json:"params"`
 		} `json:"data"`
 	}
 	if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
 		return nil, err
 	}
-	out := make(map[string]map[string]string)
+	out := make(map[string]map[string]Binding)
 	for _, r := range storeResp.Data {
 		if r.PluginID == "" || r.Combo == "" {
 			continue
 		}
 		if out[r.PluginID] == nil {
-			out[r.PluginID] = make(map[string]string)
+			out[r.PluginID] = make(map[string]Binding)
 		}
-		out[r.PluginID][r.Combo] = r.Action
+		out[r.PluginID][r.Combo] = Binding{Action: r.Action, Params: r.Params}
 	}
 	return out, nil
 }
@@ -116,7 +117,7 @@ func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	keybindsByPlugin, err := fetchKeybindsByPlugin()
 	if err != nil {
 		branchkit.Logf("keyboard", "failed to read store: %v", err)
-		keybindsByPlugin = make(map[string]map[string]string)
+		keybindsByPlugin = make(map[string]map[string]Binding)
 	}
 
 	mu.Lock()
@@ -169,23 +170,23 @@ func applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapshot {
 	if isHold {
 		downAction := findActionForCombo(&state.Registry, oldCombo+" DOWN")
 		upAction := findActionForCombo(&state.Registry, oldCombo+" UP")
-		if downAction != "" {
+		if !downAction.IsZero() {
 			overrides[newCombo+" DOWN"] = downAction
 		}
-		if upAction != "" {
+		if !upAction.IsZero() {
 			overrides[newCombo+" UP"] = upAction
 		}
 		if oldCombo != newCombo {
-			overrides[oldCombo+" DOWN"] = ""
-			overrides[oldCombo+" UP"] = ""
+			overrides[oldCombo+" DOWN"] = Binding{}
+			overrides[oldCombo+" UP"] = Binding{}
 		}
 	} else {
 		action := findActionForCombo(&state.Registry, oldCombo)
-		if action != "" {
+		if !action.IsZero() {
 			overrides[newCombo] = action
 		}
 		if oldCombo != newCombo {
-			overrides[oldCombo] = ""
+			overrides[oldCombo] = Binding{}
 		}
 	}
 
@@ -243,7 +244,7 @@ func handleReset(req *ResetRequest) (any, error) {
 	mu.Lock()
 	overrides := loadUserKeybindOverrides()
 
-	var action string
+	var action Binding
 	if req.IsHold {
 		action = findActionForCombo(&state.Registry, req.ComboKey+" DOWN")
 		delete(overrides, req.ComboKey+" DOWN")
@@ -253,13 +254,13 @@ func handleReset(req *ResetRequest) (any, error) {
 		delete(overrides, req.ComboKey)
 	}
 
-	if action != "" {
+	if !action.IsZero() {
 		for k, v := range overrides {
-			if v != "" {
+			if !v.IsZero() {
 				continue
 			}
 			for _, pluginBinds := range state.KeybindsByPlugin {
-				if pluginAction, ok := pluginBinds[k]; ok && pluginAction == action {
+				if pluginBind, ok := pluginBinds[k]; ok && pluginBind.Action == action.Action {
 					delete(overrides, k)
 				}
 			}
@@ -397,15 +398,15 @@ func humanizeAction(action string) string {
 	return capitalize(label)
 }
 
-func findActionForCombo(reg *InternalRegistry, comboStr string) string {
+func findActionForCombo(reg *InternalRegistry, comboStr string) Binding {
 	combo, ok := parseCombo(comboStr)
 	if !ok {
-		return ""
+		return Binding{}
 	}
 	if e, found := reg.resolve(combo); found {
-		return e.Action
+		return Binding{Action: e.Action, Params: e.Params}
 	}
-	return ""
+	return Binding{}
 }
 
 // --- Data loading ---

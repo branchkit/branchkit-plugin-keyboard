@@ -1,9 +1,50 @@
 package main
 
 import (
+	"encoding/json"
 	"sort"
 	"strings"
 )
+
+// Binding is what a combo points at: an action string, optionally with
+// structured params. When Params is present the action is an exact dotted
+// action type and the actuator executes it as an ordinary Action; without
+// it, the action string goes through legacy routing. A bare JSON string is
+// an action with no params, so overrides and records written before params
+// existed parse unchanged.
+type Binding struct {
+	Action string
+	Params json.RawMessage // nil = plain string action
+}
+
+func (b Binding) IsZero() bool { return b.Action == "" }
+
+func (b *Binding) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		b.Params = nil
+		return json.Unmarshal(data, &b.Action)
+	}
+	var obj struct {
+		Action string          `json:"action"`
+		Params json.RawMessage `json:"params"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	b.Action = obj.Action
+	b.Params = obj.Params
+	return nil
+}
+
+func (b Binding) MarshalJSON() ([]byte, error) {
+	if len(b.Params) == 0 {
+		return json.Marshal(b.Action)
+	}
+	return json.Marshal(struct {
+		Action string          `json:"action"`
+		Params json.RawMessage `json:"params,omitempty"`
+	}{b.Action, b.Params})
+}
 
 // --- Key combo types ---
 
@@ -177,6 +218,7 @@ func (s KeybindSource) String() string {
 type KeybindEntry struct {
 	Combo  KeyCombo
 	Action string
+	Params json.RawMessage // nil for plain string actions
 	Source KeybindSource
 }
 
@@ -214,9 +256,10 @@ type RegistrySnapshot struct {
 }
 
 type RegistryEntry struct {
-	Combo  string `json:"combo"`
-	Action string `json:"action"`
-	Source string `json:"source"`
+	Combo  string          `json:"combo"`
+	Action string          `json:"action"`
+	Source string          `json:"source"`
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
@@ -226,6 +269,7 @@ func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
 			Combo:  e.Combo.String(),
 			Action: e.Action,
 			Source: e.Source.String(),
+			Params: e.Params,
 		})
 	}
 	listenUp := make([]string, 0, len(r.ListenUp))
@@ -239,18 +283,18 @@ func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
 
 // Var seams so handler tests can run the real remap/reset flows without a
 // live actuator behind plugin.Call.
-var loadUserKeybindOverrides = func() map[string]string {
+var loadUserKeybindOverrides = func() map[string]Binding {
 	return loadOverridesFromCollection()
 }
 
-var saveUserKeybindOverrides = func(overrides map[string]string) {
+var saveUserKeybindOverrides = func(overrides map[string]Binding) {
 	saveOverridesToCollection(overrides)
 }
 
 // --- Registry build ---
 
 func buildRegistry(
-	keybindsByPlugin map[string]map[string]string,
+	keybindsByPlugin map[string]map[string]Binding,
 ) InternalRegistry {
 	reg := newRegistry()
 
@@ -263,7 +307,7 @@ func buildRegistry(
 
 	for _, pluginID := range pluginIDs {
 		keybinds := keybindsByPlugin[pluginID]
-		for comboStr, action := range keybinds {
+		for comboStr, b := range keybinds {
 			combo, ok := parseCombo(comboStr)
 			if !ok {
 				continue
@@ -274,7 +318,8 @@ func buildRegistry(
 			}
 			reg.Entries[key] = KeybindEntry{
 				Combo:  combo,
-				Action: action,
+				Action: b.Action,
+				Params: b.Params,
 				Source: KeybindSource{PluginID: pluginID},
 			}
 		}
@@ -282,18 +327,19 @@ func buildRegistry(
 
 	// 2. User TOML overrides (always win)
 	userOverrides := loadUserKeybindOverrides()
-	for comboStr, action := range userOverrides {
+	for comboStr, b := range userOverrides {
 		combo, ok := parseCombo(comboStr)
 		if !ok {
 			continue
 		}
 		key := comboKey(combo)
-		if action == "" {
+		if b.IsZero() {
 			delete(reg.Entries, key)
 		} else {
 			reg.Entries[key] = KeybindEntry{
 				Combo:  combo,
-				Action: action,
+				Action: b.Action,
+				Params: b.Params,
 				Source: KeybindSource{IsUser: true},
 			}
 		}

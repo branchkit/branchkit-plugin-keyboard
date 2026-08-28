@@ -110,9 +110,10 @@
           { "key": "id", "field_type": "string", "required": true },
           { "key": "plugin_id", "field_type": "string", "required": true },
           { "key": "combo", "field_type": "string", "required": true },
-          { "key": "action", "field_type": "string", "required": true }
+          { "key": "action", "field_type": "string", "required": true },
+          { "key": "params", "field_type": "json" }
         ],
-        "description": "Global hotkey bindings (combo → action) per plugin. Each record is one binding contributed by one plugin."
+        "description": "Global hotkey bindings (combo → action) per plugin. Each record is one binding contributed by one plugin. With params, action names an exact dotted action type dispatched as a structured Action; without, the string routes through legacy verb parsing."
       },
       "plugin.keyboard.overrides": {
         "preset": "data",
