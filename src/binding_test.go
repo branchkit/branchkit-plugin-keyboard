@@ -77,3 +77,84 @@ func TestHumanizeActionDottedTypes(t *testing.T) {
 		}
 	}
 }
+
+// The bind-a-command flow end to end at the handler level: open the picker
+// (fetch stubbed), choose a candidate, press a combo — the override is
+// saved carrying the command's action AND params, the new registry is
+// registered exactly once, and the combo resolves to the binding.
+func TestBindACommandFlow(t *testing.T) {
+	got := captureRegistrations(t)
+
+	origFetch := fetchBindableCommands
+	fetchBindableCommands = func() ([]bindCandidate, error) {
+		return []bindCandidate{{
+			ID:      "scripts:bind probe check",
+			Pattern: "bind probe check",
+			Owner:   "scripts",
+			B:       Binding{Action: "scripts.run", Params: json.RawMessage(`{"script":"bindprobe","handler":"h1"}`)},
+		}}, nil
+	}
+	t.Cleanup(func() { fetchBindableCommands = origFetch })
+
+	mu.Lock()
+	state = newPluginState()
+	mu.Unlock()
+
+	if _, err := handleOpenBindPicker(nil); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := handleChooseBind(&ChooseBindRequest{ID: "scripts:bind probe check"}); err != nil {
+		t.Fatalf("choose: %v", err)
+	}
+	if _, err := handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{
+		Code: "KeyZ", Key: "z", AltKey: true, CtrlKey: true,
+	}}); err != nil {
+		t.Fatalf("keydown: %v", err)
+	}
+
+	if len(*got) != 1 {
+		t.Fatalf("bind must register exactly once, got %d", len(*got))
+	}
+	b := findActionForCombo(&state.Registry, "ctrl+opt+z")
+	if b.Action != "scripts.run" {
+		t.Fatalf("combo must resolve to the bound action, got %+v", b)
+	}
+	if string(b.Params) != `{"script":"bindprobe","handler":"h1"}` {
+		t.Fatalf("params must ride the binding, got %s", b.Params)
+	}
+	mu.Lock()
+	if state.BindPicker != nil || state.PendingBind != nil {
+		mu.Unlock()
+		t.Fatal("picker must close after a successful bind")
+	}
+	mu.Unlock()
+}
+
+// A combo without modifiers is refused with a one-shot error and no write.
+func TestBindKeydownRequiresModifiers(t *testing.T) {
+	got := captureRegistrations(t)
+	origFetch := fetchBindableCommands
+	fetchBindableCommands = func() ([]bindCandidate, error) {
+		return []bindCandidate{{ID: "x", Pattern: "x", Owner: "p", B: Binding{Action: "p.x"}}}, nil
+	}
+	t.Cleanup(func() { fetchBindableCommands = origFetch })
+
+	mu.Lock()
+	state = newPluginState()
+	mu.Unlock()
+	handleOpenBindPicker(nil)
+	handleChooseBind(&ChooseBindRequest{ID: "x"})
+	handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{Code: "KeyZ", Key: "z"}})
+
+	if len(*got) != 0 {
+		t.Fatal("a refused bind must not register")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if state.BindError == "" {
+		t.Fatal("refusal must set the one-shot error")
+	}
+	if state.PendingBind == nil {
+		t.Fatal("capture stays open so the user can try again")
+	}
+}

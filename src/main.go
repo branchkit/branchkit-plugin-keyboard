@@ -16,9 +16,14 @@ import (
 
 type PluginState struct {
 	KeybindsByPlugin map[string]map[string]Binding
-	Registry         InternalRegistry
-	RemappingCombo   string // empty = not remapping
-	KeysError        string // error message shown on next Keys tab render, then cleared
+	// Bind-a-command flow: picker contents (non-nil = open), the candidate
+	// awaiting its combo, and a one-shot error shown on next render.
+	BindPicker     []bindCandidate
+	PendingBind    *bindCandidate
+	BindError      string
+	Registry       InternalRegistry
+	RemappingCombo string // empty = not remapping
+	KeysError      string // error message shown on next Keys tab render, then cleared
 	// Key names: physical key name → keycode (loaded from data/key_names_macos.json)
 	KeyNamesMerged map[string]uint16
 	// Layout: cached from GET /v1/native/keyboard-layout at startup
@@ -724,6 +729,11 @@ func main() {
 	branchkit.HandleTyped(plugin, "stop_capture", handleStopCapture)
 	branchkit.HandleTyped(plugin, "parse_key_event", handleParseKeyEvent)
 	branchkit.HandleTyped(plugin, "remap_keydown", handleRemapKeydown)
+	branchkit.HandleTyped(plugin, "open_bind_picker", handleOpenBindPicker)
+	branchkit.HandleTyped(plugin, "close_bind_picker", handleCloseBindPicker)
+	branchkit.HandleTyped(plugin, "choose_bind", handleChooseBind)
+	branchkit.HandleTyped(plugin, "cancel_bind", handleCancelBind)
+	branchkit.HandleTyped(plugin, "bind_keydown", handleBindKeydown)
 	// Per-action handlers (replaces the old single on_action switch).
 	HandleType(plugin, handleInputType)
 	HandleKeyByName(plugin, handleInputKeyByName)

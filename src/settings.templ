@@ -10,6 +10,10 @@ type KeybindSettingsData struct {
 	Groups         []keybindGroupView
 	HasOverrides   bool
 	RemappingCombo string
+	BindPickerOpen bool
+	BindRows       []bindRowView
+	PendingBind    string
+	BindError      string
 }
 
 templ KeybindSettings(data KeybindSettingsData) {
@@ -18,12 +22,21 @@ templ KeybindSettings(data KeybindSettingsData) {
 			<div>Keybind</div>
 			<div>Action</div>
 			<div>Source</div>
-			<div style="text-align: right;">
+			<div style="text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
+				if !data.BindPickerOpen {
+					<button style="font-size: 11px; padding: 2px 8px;" data-on:click={ branchkit.MethodPost("open_bind_picker", "") }>Bind a command…</button>
+				}
 				if data.HasOverrides {
 					<button style="font-size: 11px; padding: 2px 8px;" data-on:click={ branchkit.MethodPost("reset_all", "") }>Reset All</button>
 				}
 			</div>
 		</div>
+		if data.BindError != "" {
+			<div style="padding: 8px 20px; color: var(--error, #e5534b); font-size: 12px; border-bottom: 1px solid var(--border);">{ data.BindError }</div>
+		}
+		if data.BindPickerOpen {
+			@BindPicker(data)
+		}
 		for _, group := range data.Groups {
 			<div style="padding: 8px 20px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;">
 				{ group.SourceName }
@@ -71,4 +84,50 @@ templ KeybindSettings(data KeybindSettingsData) {
 			50% { border-color: rgba(0, 122, 255, 0.3); }
 		}
 	</style>
+}
+
+// The bind-a-command picker: every statically bindable command, filtered by
+// the tab search. Picking one opens a combo capture; the captured combo is
+// saved as a user override carrying the command's action and params.
+templ BindPicker(data KeybindSettingsData) {
+	<div style="border-bottom: 2px solid var(--border);">
+		<div style="padding: 8px 20px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03);">
+			<span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;">Bind a command</span>
+			<span style="font-size: 11px; color: var(--text-dim);">— pick a command, then press the key combo. Use the search box to narrow the list.</span>
+			<span style="flex: 1;"></span>
+			<button class="icon-btn" title="Close" data-on:click={ branchkit.MethodPost("close_bind_picker", "") }>&#10005;</button>
+		</div>
+		if data.PendingBind != "" {
+			<div class="settings-row">
+				<div class="label" style="display: flex; align-items: center; gap: 6px; grid-column: 1 / -1;">
+					<span>{ data.PendingBind }</span>
+					<input
+						type="text"
+						readonly
+						placeholder="Press key combo..."
+						style="flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;"
+						id="bind-input"
+						data-init="document.getElementById('bind-input').focus()"
+						data-on:keydown={ "evt.preventDefault(); evt.stopPropagation(); " + branchkit.MethodPost("bind_keydown", "{code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey}") }
+						data-on:blur__debounce.200ms={ branchkit.MethodPost("cancel_bind", "") }
+					/>
+					<button class="icon-btn" title="Cancel" data-on:click={ branchkit.MethodPost("cancel_bind", "") }>&#10005;</button>
+				</div>
+			</div>
+		} else {
+			for _, r := range data.BindRows {
+				<div class="settings-row">
+					<div class="label">{ r.Pattern }</div>
+					<div class="value" style="color: var(--text-dim);">{ r.Owner }</div>
+					<div></div>
+					<div style="text-align: right;">
+						<button style="font-size: 11px; padding: 2px 8px;" data-on:click__debounce.500ms.leading={ branchkit.MethodPost("choose_bind", fmt.Sprintf("{id: %s}", string(r.IDJSON))) }>Bind</button>
+					</div>
+				</div>
+			}
+			if len(data.BindRows) == 0 {
+				<div style="padding: 12px 20px; color: var(--text-dim); font-size: 12px;">No bindable commands match the search.</div>
+			}
+		}
+	</div>
 }

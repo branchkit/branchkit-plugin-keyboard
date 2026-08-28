@@ -26,6 +26,13 @@ type keybindGroupView struct {
 	Rows       []keybindRowView
 }
 
+type bindRowView struct {
+	ID      string
+	IDJSON  template.JS // JSON-escaped for safe use in Datastar expressions
+	Pattern string
+	Owner   string
+}
+
 func renderSettings(ps *PluginState, search string) string {
 	// Group entries by (key, modifiers) ignoring event type
 	type comboGroupKey struct {
@@ -143,10 +150,40 @@ func renderSettings(ps *PluginState, search string) string {
 		return groups[i].SourceName < groups[j].SourceName
 	})
 
+	// Bind-a-command picker view: filtered by the same tab search, one row
+	// per bindable command. BindError is one-shot — shown once, then gone.
+	var bindRows []bindRowView
+	if ps.BindPicker != nil {
+		for _, c := range ps.BindPicker {
+			if search != "" &&
+				!strings.Contains(strings.ToLower(c.Pattern), search) &&
+				!strings.Contains(strings.ToLower(c.Owner), search) {
+				continue
+			}
+			idJSON, _ := json.Marshal(c.ID)
+			bindRows = append(bindRows, bindRowView{
+				ID:      c.ID,
+				IDJSON:  template.JS(string(idJSON)),
+				Pattern: c.Pattern,
+				Owner:   c.Owner,
+			})
+		}
+	}
+	pendingBind := ""
+	if ps.PendingBind != nil {
+		pendingBind = ps.PendingBind.Pattern
+	}
+	bindError := ps.BindError
+	ps.BindError = ""
+
 	data := KeybindSettingsData{
 		Groups:         groups,
 		HasOverrides:   hasOverrides,
 		RemappingCombo: ps.RemappingCombo,
+		BindPickerOpen: ps.BindPicker != nil,
+		BindRows:       bindRows,
+		PendingBind:    pendingBind,
+		BindError:      bindError,
 	}
 
 	return renderTempl(KeybindSettings(data))
