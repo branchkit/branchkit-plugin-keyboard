@@ -387,14 +387,13 @@ func sourceBadgeLabel(src KeybindSource) string {
 }
 
 func humanizeAction(action string) string {
-	parts := strings.Fields(action)
+	// Actions are exact dotted types ("voice.dictation", "tiling.move_to");
+	// the label is the leaf with underscores opened up.
 	base := action
-	if len(parts) > 0 {
-		base = parts[len(parts)-1]
+	if i := strings.LastIndex(base, "."); i >= 0 {
+		base = base[i+1:]
 	}
-	base = strings.TrimSuffix(base, "-start")
-	base = strings.TrimSuffix(base, "-stop")
-	label := strings.ReplaceAll(base, "-", " ")
+	label := strings.ReplaceAll(base, "_", " ")
 	return capitalize(label)
 }
 

@@ -6,45 +6,17 @@ import (
 	"strings"
 )
 
-// Binding is what a combo points at: an action string, optionally with
-// structured params. When Params is present the action is an exact dotted
-// action type and the actuator executes it as an ordinary Action; without
-// it, the action string goes through legacy routing. A bare JSON string is
-// an action with no params, so overrides and records written before params
-// existed parse unchanged.
+// Binding is what a combo points at: an exact dotted action type plus its
+// params — the same pair a command record's action carries. The actuator
+// executes it as an ordinary Action through the shared executor; the
+// string-routing dialect was deleted 2026-08-28. An override with an empty
+// Action is a tombstone (the user unbound the combo).
 type Binding struct {
-	Action string
-	Params json.RawMessage // nil = plain string action
+	Action string          `json:"action"`
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 func (b Binding) IsZero() bool { return b.Action == "" }
-
-func (b *Binding) UnmarshalJSON(data []byte) error {
-	if len(data) > 0 && data[0] == '"' {
-		b.Params = nil
-		return json.Unmarshal(data, &b.Action)
-	}
-	var obj struct {
-		Action string          `json:"action"`
-		Params json.RawMessage `json:"params"`
-	}
-	if err := json.Unmarshal(data, &obj); err != nil {
-		return err
-	}
-	b.Action = obj.Action
-	b.Params = obj.Params
-	return nil
-}
-
-func (b Binding) MarshalJSON() ([]byte, error) {
-	if len(b.Params) == 0 {
-		return json.Marshal(b.Action)
-	}
-	return json.Marshal(struct {
-		Action string          `json:"action"`
-		Params json.RawMessage `json:"params,omitempty"`
-	}{b.Action, b.Params})
-}
 
 // --- Key combo types ---
 

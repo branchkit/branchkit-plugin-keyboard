@@ -5,21 +5,19 @@ import (
 	"testing"
 )
 
-// The overrides collection and the keybinds records both carry Binding.
-// A bare JSON string is an action with no params — records and overrides
-// written before params existed parse unchanged, and the tombstone ("")
-// round-trips.
+// The overrides collection and the keybinds records both carry Binding:
+// an exact dotted action type plus params. The tombstone (empty action)
+// round-trips, and params survive marshaling untouched.
 func TestBindingJSONRoundTrip(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
 		want Binding
 	}{
-		{"bare string", `"voice dictation"`, Binding{Action: "voice dictation"}},
-		{"tombstone", `""`, Binding{}},
-		{"object with params", `{"action":"scripts.run","params":{"script":"notes.lua","handler":3}}`,
-			Binding{Action: "scripts.run", Params: json.RawMessage(`{"script":"notes.lua","handler":3}`)}},
-		{"object without params", `{"action":"voice dictation"}`, Binding{Action: "voice dictation"}},
+		{"tombstone", `{"action":""}`, Binding{}},
+		{"with params", `{"action":"scripts.run","params":{"script":"notes.lua","handler":"h1"}}`,
+			Binding{Action: "scripts.run", Params: json.RawMessage(`{"script":"notes.lua","handler":"h1"}`)}},
+		{"without params", `{"action":"voice.dictation"}`, Binding{Action: "voice.dictation"}},
 	}
 	for _, c := range cases {
 		var b Binding
@@ -45,13 +43,6 @@ func TestBindingJSONRoundTrip(t *testing.T) {
 			t.Fatalf("%s: round-trip action %q -> %q", c.name, b.Action, back.Action)
 		}
 	}
-
-	// A param-less binding marshals as a bare string — the shape overrides
-	// have always had on disk.
-	out, _ := json.Marshal(Binding{Action: "voice dictation"})
-	if string(out) != `"voice dictation"` {
-		t.Fatalf("param-less binding must marshal as a bare string, got %s", out)
-	}
 }
 
 // Params flow from the per-plugin map through buildRegistry into the
@@ -71,5 +62,18 @@ func TestBuildRegistryCarriesParams(t *testing.T) {
 	e := snap.Entries[0]
 	if e.Action != "scripts.run" || string(e.Params) != `{"script":"notes.lua"}` {
 		t.Fatalf("params lost: %+v", e)
+	}
+}
+
+func TestHumanizeActionDottedTypes(t *testing.T) {
+	cases := map[string]string{
+		"voice.dictation": "Dictation",
+		"tiling.move_to":  "Move to",
+		"scripts.run":     "Run",
+	}
+	for in, want := range cases {
+		if got := humanizeAction(in); got != want {
+			t.Fatalf("humanizeAction(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
