@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/branchkit/plugin-sdk-go"
-	toolkit "github.com/branchkit/plugin-toolkit-go"
 )
 
 // --- Plugin state ---
@@ -419,7 +418,7 @@ func findActionForCombo(reg *InternalRegistry, comboStr string) Binding {
 // stores in plugin state, and pushes to the keycodes store.
 // User overrides are handled by the platform collection override system.
 func loadAndPushKeycodes(p *branchkit.Plugin) {
-	dataPath := filepath.Join(toolkit.PluginDir(), "data", "key_names_macos.json")
+	dataPath := filepath.Join(branchkit.PluginDir(), "data", "key_names_macos.json")
 	data, err := os.ReadFile(dataPath)
 	if err != nil {
 		branchkit.Logf("keyboard", "Failed to read %s: %v", dataPath, err)
@@ -571,7 +570,7 @@ func loadAndPushLayoutCharacters(p *branchkit.Plugin) {
 // loadAndPushKeys loads spoken key names from data/keys.json, enriches with
 // layout-specific character entries, and pushes to the "keys" collection.
 func loadAndPushKeys(p *branchkit.Plugin) {
-	data, err := os.ReadFile(filepath.Join(toolkit.PluginDir(), "data", "keys.json"))
+	data, err := os.ReadFile(filepath.Join(branchkit.PluginDir(), "data", "keys.json"))
 	if err != nil {
 		branchkit.Logf("keyboard", "Failed to read data/keys.json: %v", err)
 		return
@@ -607,7 +606,7 @@ func loadAndPushKeys(p *branchkit.Plugin) {
 // loadAndPushModifiers loads spoken modifier names from data/modifiers.json
 // and pushes to the "modifiers" collection.
 func loadAndPushModifiers(p *branchkit.Plugin) {
-	data, err := os.ReadFile(filepath.Join(toolkit.PluginDir(), "data", "modifiers.json"))
+	data, err := os.ReadFile(filepath.Join(branchkit.PluginDir(), "data", "modifiers.json"))
 	if err != nil {
 		branchkit.Logf("keyboard", "Failed to read data/modifiers.json: %v", err)
 		return
