@@ -295,7 +295,7 @@ func handleResetAll(_ *struct{}) (any, error) {
 //
 // This replaced raw `ControlSignal("keybind:pause")` — a global lease with no
 // owner, no refcount and no expiry, where a crash between pause and resume
-// left every hotkey dead (item 1.3 in notes/PLAN_HANDROLL_REMEDIATION.md).
+// left every hotkey dead (item 1.3 in docs/design/PLAN_HANDROLL_REMEDIATION.md).
 // As an effect the platform owns the lifetime: per-plugin stack frames, the
 // actual pause only on the empty→held transition, resume only when the LAST
 // holder releases (so an overlapping voice-editor capture isn't stomped —
