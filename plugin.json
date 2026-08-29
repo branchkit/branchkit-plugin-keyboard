@@ -6,6 +6,7 @@
   "min_api_version": "0.1.0",
   "description": "Global hotkey capture, keybind registry, and input simulation.",
   "author": "BranchKit",
+  "publisher": "github:branchkit",
   "action_prefix": "input",
   "action_types": {
     "type": {
