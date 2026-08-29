@@ -1,4 +1,6 @@
 github.com/a-h/templ v0.3.1001 h1:yHDTgexACdJttyiyamcTHXr2QkIeVF1MukLy44EAhMY=
 github.com/a-h/templ v0.3.1001/go.mod h1:oCZcnKRf5jjsGpf2yELzQfodLphd2mwecwG4Crk5HBo=
+github.com/branchkit/plugin-sdk-go v0.3.1-0.20260828181139-0d8b776cb15d h1:yxbKU/TflQSw5JqE9G3AXDe6+LzJXggf7YKjM1GNLqI=
+github.com/branchkit/plugin-sdk-go v0.3.1-0.20260828181139-0d8b776cb15d/go.mod h1:GG07T1G/8a/bg5yMwBP0pawQXnt7eCBXSOkAcBRL+F0=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
