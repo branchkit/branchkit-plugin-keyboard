@@ -123,27 +123,6 @@
         "writers": "introducer_only",
         "description": "User keybind overrides (combo → action remaps)."
       },
-      "keycodes": {
-        "preset": "named_entities",
-        "fields": [
-          {
-            "key": "name",
-            "field_type": "string",
-            "label": "Key name"
-          },
-          {
-            "key": "code",
-            "field_type": "int",
-            "label": "Keycode"
-          }
-        ],
-        "feeds_matching": {
-          "type": "as_named_entities",
-          "key_field": "name",
-          "value_field": "code"
-        },
-        "description": "Platform-specific key name to keycode mappings."
-      },
       "layout_characters": {
         "preset": "data",
         "merge": "authoritative",
@@ -206,6 +185,7 @@
   },
   "run": "./keyboard-plugin",
   "consumes": {
+    "collections": ["_platform.key_names"],
     "effects": [
       {
         "asserts": ["suppress_keybinds"],

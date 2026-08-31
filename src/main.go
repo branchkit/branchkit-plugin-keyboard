@@ -23,7 +23,8 @@ type PluginState struct {
 	Registry       InternalRegistry
 	RemappingCombo string // empty = not remapping
 	KeysError      string // error message shown on next Keys tab render, then cleared
-	// Key names: physical key name → keycode (loaded from data/key_names_macos.json)
+	// Key names: physical key name → keycode, read from the platform's
+	// `_platform.key_names` registry (with user overrides applied).
 	KeyNamesMerged map[string]uint16
 	// Layout: cached from GET /v1/native/keyboard-layout at startup
 	LayoutName     string            // e.g. "U.S."
@@ -414,63 +415,23 @@ func findActionForCombo(reg *InternalRegistry, comboStr string) Binding {
 
 // --- Data loading ---
 
-// loadAndPushKeycodes loads key_names_macos.json from the plugin data dir,
-// stores in plugin state, and pushes to the keycodes store.
-// User overrides are handled by the platform collection override system.
-func loadAndPushKeycodes(p *branchkit.Plugin) {
-	dataPath := filepath.Join(branchkit.PluginDir(), "data", "key_names_macos.json")
-	data, err := os.ReadFile(dataPath)
-	if err != nil {
-		branchkit.Logf("keyboard", "Failed to read %s: %v", dataPath, err)
-		return
-	}
-	var keycodes map[string]uint16
-	if err := json.Unmarshal(data, &keycodes); err != nil {
-		branchkit.Logf("keyboard", "Failed to parse %s: %v", dataPath, err)
-		return
-	}
+// keyNamesCollection is the platform's key-name registry. This plugin used to
+// introduce and seed it (as `keycodes`), which made the platform's ability to
+// resolve a key name depend on this plugin being installed. The platform owns
+// and seeds it now; keyboard is one consumer among possible others, and may
+// contribute names on top of the baseline.
+const keyNamesCollection = "_platform.key_names"
 
-	mu.Lock()
-	state.KeyNamesMerged = keycodes
-	mu.Unlock()
-
-	// Push as array of objects matching entry_schema: {name, code}
-	type keycodeEntry struct {
-		Name string `json:"name"`
-		Code uint16 `json:"code"`
-	}
-	// `keycodes` declares feeds_matching: as_named_entities with
-	// key_field: "name" — each record's id is its name.
-	records := make([]branchkit.CollectionPutEntry, 0, len(keycodes))
-	for name, code := range keycodes {
-		raw, err := json.Marshal(keycodeEntry{Name: name, Code: code})
-		if err != nil {
-			branchkit.Logf("keyboard", "keycodes: marshal %q: %v", name, err)
-			return
-		}
-		records = append(records, branchkit.CollectionPutEntry{ID: name, Payload: raw})
-	}
-	// The collection IS the platform's key-name source: the actuator
-	// resolves `input.press_key` names through this collection's records,
-	// so pushing them is the whole handshake.
-	if _, err := p.Replace("keycodes", records, branchkit.ScopeCollection()); err != nil {
-		branchkit.Logf("keyboard", "Failed to push keycodes store: %v", err)
-		return
-	}
-
-	branchkit.Logf("keyboard", "Pushed %d keycodes to store", len(keycodes))
-}
-
-// refreshKeycodesFromCollection re-reads the keycodes collection (with overrides
-// applied) into local state, which feeds layout characters. The platform tracks
-// the same records itself — it resolves key names from this collection — so
-// there is nothing to push back.
+// refreshKeycodesFromCollection reads the platform's key-name registry (with
+// overrides applied) into local state, which feeds layout characters, the Keys
+// settings tab, and hold-to-repeat's code lookup. Read-only: the platform seeds
+// and resolves from the same records, so there is nothing to push back.
 func refreshKeycodesFromCollection() {
 	var resp struct {
 		Entries map[string]json.RawMessage `json:"entries"`
 	}
-	if err := plugin.Call("collection.get", map[string]string{"name": "keycodes"}, &resp); err != nil {
-		branchkit.Logf("keyboard", "failed to re-read keycodes collection: %v", err)
+	if err := plugin.Call("collection.get", map[string]string{"name": keyNamesCollection}, &resp); err != nil {
+		branchkit.Logf("keyboard", "failed to read %s: %v", keyNamesCollection, err)
 		return
 	}
 	if resp.Entries == nil {
@@ -503,7 +464,7 @@ func refreshKeycodesFromCollection() {
 	state.KeyNamesMerged = merged
 	mu.Unlock()
 
-	branchkit.Logf("keyboard", "refreshed %d keycodes from collection update", len(merged))
+	branchkit.Logf("keyboard", "read %d key names from %s", len(merged), keyNamesCollection)
 }
 
 // buildLayoutCharacters joins keycodes with layout mappings to produce
@@ -637,8 +598,11 @@ func main() {
 	// Load system key repeat settings for hold-to-repeat support
 	repeatCfg = loadRepeatConfig(plugin)
 
+	// Key names come FROM the platform now — read them before the loaders
+	// below, which enrich against them.
+	refreshKeycodesFromCollection()
+
 	// Push initial data to actuator stores
-	loadAndPushKeycodes(plugin)
 	loadAndPushLayoutCharacters(plugin)
 	loadAndPushKeys(plugin) // depends on layout_characters for enrichment
 	loadAndPushModifiers(plugin)
@@ -671,7 +635,7 @@ func main() {
 			return
 		}
 		switch payload.Collection {
-		case "keycodes":
+		case keyNamesCollection:
 			refreshKeycodesFromCollection()
 			return
 		case "keybinds":
