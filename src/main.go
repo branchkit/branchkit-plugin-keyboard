@@ -450,24 +450,21 @@ func loadAndPushKeycodes(p *branchkit.Plugin) {
 		}
 		records = append(records, branchkit.CollectionPutEntry{ID: name, Payload: raw})
 	}
+	// The collection IS the platform's key-name source: the actuator
+	// resolves `input.press_key` names through this collection's records,
+	// so pushing them is the whole handshake.
 	if _, err := p.Replace("keycodes", records, branchkit.ScopeCollection()); err != nil {
 		branchkit.Logf("keyboard", "Failed to push keycodes store: %v", err)
 		return
 	}
 
-	// Set the platform key name cache directly
-	namesBody := struct {
-		Names map[string]uint16 `json:"names"`
-	}{Names: keycodes}
-	if err := p.Call("key_names.set", namesBody, nil); err != nil {
-		branchkit.Logf("keyboard", "Failed to set key_names cache: %v", err)
-	}
-
 	branchkit.Logf("keyboard", "Pushed %d keycodes to store", len(keycodes))
 }
 
-// refreshKeycodesFromCollection re-reads the keycodes collection (with overrides applied)
-// and updates the local state + platform key_names cache.
+// refreshKeycodesFromCollection re-reads the keycodes collection (with overrides
+// applied) into local state, which feeds layout characters. The platform tracks
+// the same records itself — it resolves key names from this collection — so
+// there is nothing to push back.
 func refreshKeycodesFromCollection() {
 	var resp struct {
 		Entries map[string]json.RawMessage `json:"entries"`
@@ -506,13 +503,6 @@ func refreshKeycodesFromCollection() {
 	state.KeyNamesMerged = merged
 	mu.Unlock()
 
-	// Update platform key_names cache
-	namesBody := struct {
-		Names map[string]uint16 `json:"names"`
-	}{Names: merged}
-	if err := plugin.Call("key_names.set", namesBody, nil); err != nil {
-		branchkit.Logf("keyboard", "failed to update key_names cache: %v", err)
-	}
 	branchkit.Logf("keyboard", "refreshed %d keycodes from collection update", len(merged))
 }
 
