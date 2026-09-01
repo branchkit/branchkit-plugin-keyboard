@@ -186,7 +186,7 @@
   },
   "run": "./keyboard-plugin",
   "consumes": {
-    "collections": ["_platform.key_names"],
+    "collections": [{ "name": "_platform.key_names", "fields": ["name", "code"] }],
     "effects": [
       {
         "asserts": ["suppress_keybinds"],
