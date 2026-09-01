@@ -204,7 +204,13 @@ func applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapshot {
 }
 
 func handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
-	parsed := parseDOMKeyEvent(req.DOMKeyEvent)
+	// Same platform operation the bind recorder uses — see bind.go for why the
+	// local copy went away.
+	parsed, err := parseKeyEvent(req.DOMKeyEvent)
+	if err != nil {
+		branchkit.Logf("keyboard", "remap keydown: parse failed: %v", err)
+		return OkResponse{OK: false}, nil
+	}
 
 	// Escape → cancel remap
 	if parsed.IsEscape {
@@ -680,7 +686,6 @@ func main() {
 	branchkit.HandleTyped(plugin, "reset_all", handleResetAll)
 	branchkit.HandleTyped(plugin, "start_capture", handleStartCapture)
 	branchkit.HandleTyped(plugin, "stop_capture", handleStopCapture)
-	branchkit.HandleTyped(plugin, "parse_key_event", handleParseKeyEvent)
 	branchkit.HandleTyped(plugin, "remap_keydown", handleRemapKeydown)
 	branchkit.HandleTyped(plugin, "open_bind_picker", handleOpenBindPicker)
 	branchkit.HandleTyped(plugin, "close_bind_picker", handleCloseBindPicker)

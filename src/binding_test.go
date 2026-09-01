@@ -82,6 +82,20 @@ func TestHumanizeActionDottedTypes(t *testing.T) {
 // (fetch stubbed), choose a candidate, press a combo — the override is
 // saved carrying the command's action AND params, the new registry is
 // registered exactly once, and the combo resolves to the binding.
+// stubParseKeyEvent stands in for `input.parse_key_event`.
+//
+// The parse used to be local and pure, so these handlers were testable with
+// no host; it is a platform operation now, and reaching it needs a live RPC.
+// Stubbing is the honest trade — what these tests cover is the bind FLOW
+// (picker, choose, keydown, registration), and the parse itself is pinned in
+// the actuator against the key registry the local copy disagreed with.
+func stubParseKeyEvent(t *testing.T, out ParsedKeyEvent) {
+	t.Helper()
+	orig := parseKeyEvent
+	parseKeyEvent = func(DOMKeyEvent) (ParsedKeyEvent, error) { return out, nil }
+	t.Cleanup(func() { parseKeyEvent = orig })
+}
+
 func TestBindACommandFlow(t *testing.T) {
 	got := captureRegistrations(t)
 
@@ -106,6 +120,7 @@ func TestBindACommandFlow(t *testing.T) {
 	if _, err := handleChooseBind(&ChooseBindRequest{ID: "scripts:bind probe check"}); err != nil {
 		t.Fatalf("choose: %v", err)
 	}
+	stubParseKeyEvent(t, ParsedKeyEvent{Combo: "ctrl+opt+z", KeyName: "z", HasModifiers: true})
 	if _, err := handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{
 		Code: "KeyZ", Key: "z", AltKey: true, CtrlKey: true,
 	}}); err != nil {
@@ -144,6 +159,7 @@ func TestBindKeydownRequiresModifiers(t *testing.T) {
 	mu.Unlock()
 	handleOpenBindPicker(nil)
 	handleChooseBind(&ChooseBindRequest{ID: "x"})
+	stubParseKeyEvent(t, ParsedKeyEvent{Combo: "z", KeyName: "z"})
 	handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{Code: "KeyZ", Key: "z"}})
 
 	if len(*got) != 0 {

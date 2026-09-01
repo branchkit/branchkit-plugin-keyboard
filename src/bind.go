@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"sort"
+
+	branchkit "github.com/branchkit/plugin-sdk-go"
 )
 
 // A command offered by the bind-a-command picker: display identity plus the
@@ -111,7 +113,16 @@ func handleCancelBind(_ *struct{}) (any, error) {
 }
 
 func handleBindKeydown(req *BindKeydownRequest) (any, error) {
-	parsed := parseDOMKeyEvent(req.DOMKeyEvent)
+	// `input.parse_key_event` is the platform's, and this plugin's local copy
+	// is gone. The copy emitted punctuation glyphs for `=`, `[` and `'` while
+	// `_platform.key_names` names those keys `equals`, `leftbracket` and
+	// `apostrophe` — so a binding recorded on one of them named a key nothing
+	// could resolve. Key naming is platform state; this parsing follows it.
+	parsed, err := parseKeyEvent(req.DOMKeyEvent)
+	if err != nil {
+		branchkit.Logf("keyboard", "bind keydown: parse failed: %v", err)
+		return OkResponse{OK: false}, nil
+	}
 
 	// Escape → cancel the capture, keep the picker open.
 	if parsed.IsEscape {
