@@ -24,11 +24,14 @@ func TestParseDOMCode_DigitPrefix(t *testing.T) {
 	}
 }
 
-func TestParseDOMCode_NumpadPrefix(t *testing.T) {
+func TestParseDOMCode_Numpad(t *testing.T) {
 	tests := map[string]string{
-		"Numpad0":        "keypad_0",
-		"Numpad9":        "keypad_9",
-		"NumpadAdd":      "keypad_add",
+		"Numpad0": "keypad_0",
+		"Numpad9": "keypad_9",
+		// DOM suffix and registry name differ for these three.
+		"NumpadAdd":      "keypad_plus",
+		"NumpadSubtract": "keypad_minus",
+		"NumpadEqual":    "keypad_equals",
 		"NumpadMultiply": "keypad_multiply",
 	}
 	for code, want := range tests {
@@ -43,10 +46,11 @@ func TestParseDOMCode_MapEntries(t *testing.T) {
 		"Space": "space", "Enter": "return", "Tab": "tab",
 		"Backspace": "delete", "Escape": "escape",
 		"ArrowLeft": "left", "ArrowRight": "right",
-		"Minus": "-", "Slash": "/", "Backslash": "\\",
-		"BracketLeft": "[", "BracketRight": "]",
-		"Semicolon": ";", "Quote": "'", "Comma": ",",
-		"Period": ".", "Backquote": "`",
+		// Word names — the registry has no character-form aliases.
+		"Minus": "minus", "Slash": "slash", "Backslash": "backslash",
+		"BracketLeft": "leftbracket", "BracketRight": "rightbracket",
+		"Semicolon": "semicolon", "Quote": "apostrophe", "Comma": "comma",
+		"Period": "period", "Backquote": "backtick",
 		"F1": "f1", "F12": "f12",
 	}
 	for code, want := range tests {
@@ -125,11 +129,11 @@ func TestParseDOMKeyEvent_UnknownCode(t *testing.T) {
 
 func TestParseDOMKeyEvent_Punctuation(t *testing.T) {
 	result := parseDOMKeyEvent(DOMKeyEvent{Code: "Slash", Key: "/"})
-	if result.Combo != "/" {
-		t.Errorf("combo = %q, want '/'", result.Combo)
+	if result.Combo != "slash" {
+		t.Errorf("combo = %q, want 'slash'", result.Combo)
 	}
-	if result.KeyName != "/" {
-		t.Errorf("key_name = %q, want '/'", result.KeyName)
+	if result.KeyName != "slash" {
+		t.Errorf("key_name = %q, want 'slash'", result.KeyName)
 	}
 }
 
@@ -137,7 +141,50 @@ func TestParseDOMKeyEvent_ShortcutWithPunctuation(t *testing.T) {
 	result := parseDOMKeyEvent(DOMKeyEvent{
 		Code: "Slash", Key: "/", MetaKey: true,
 	})
-	if result.Combo != "cmd+/" {
-		t.Errorf("combo = %q, want 'cmd/'", result.Combo)
+	if result.Combo != "cmd+slash" {
+		t.Errorf("combo = %q, want 'cmd+slash'", result.Combo)
+	}
+}
+
+// Guards the drift this map has already suffered once: the registry dropped
+// its character-form aliases while domCodeMap went on emitting them, so every
+// punctuation binding captured in the settings UI was unresolvable. A captured
+// name the registry does not know is now dropped rather than stored.
+func TestParseDOMKeyEvent_DropsNamesTheRegistryLacks(t *testing.T) {
+	mu.Lock()
+	saved := state.KeyNamesMerged
+	state.KeyNamesMerged = map[string]uint16{"slash": 44, "a": 0}
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		state.KeyNamesMerged = saved
+		mu.Unlock()
+	}()
+
+	// "slash" is in the registry — kept.
+	if got := parseDOMKeyEvent(DOMKeyEvent{Code: "Slash", Key: "/"}); got.KeyName != "slash" {
+		t.Errorf("Slash key_name = %q, want slash", got.KeyName)
+	}
+	// "comma" is not in this registry — dropped, not stored as a dead binding.
+	if got := parseDOMKeyEvent(DOMKeyEvent{Code: "Comma", Key: ","}); !got.IsBareModifier {
+		t.Errorf("Comma should be dropped when absent from the registry, got %+v", got)
+	}
+}
+
+// Before the registry loads there is nothing to check against, so the guard
+// must not reject everything and leave capture broken at startup.
+func TestParseDOMKeyEvent_EmptyRegistryDoesNotRejectEverything(t *testing.T) {
+	mu.Lock()
+	saved := state.KeyNamesMerged
+	state.KeyNamesMerged = nil
+	mu.Unlock()
+	defer func() {
+		mu.Lock()
+		state.KeyNamesMerged = saved
+		mu.Unlock()
+	}()
+
+	if got := parseDOMKeyEvent(DOMKeyEvent{Code: "Comma", Key: ","}); got.KeyName != "comma" {
+		t.Errorf("with no registry loaded, key_name = %q, want comma", got.KeyName)
 	}
 }

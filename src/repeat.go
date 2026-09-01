@@ -14,10 +14,19 @@ type repeatConfig struct {
 	RepeatInterval time.Duration
 }
 
+// keyTarget is a key to hold: a name when the caller gave one (the usual
+// case), plus the code it resolved to. The name matters because modifier
+// CLASSIFICATION cannot be done on a raw code — the platform registry is
+// per-OS, so macOS's cmd (55) is `v` on Linux and Numpad* on Windows.
+type keyTarget struct {
+	name string
+	code int
+}
+
 type holdState struct {
 	id     uint64
 	cancel context.CancelFunc
-	code   int
+	key    keyTarget
 	mods   []string
 }
 
@@ -28,26 +37,52 @@ var (
 	heldModifiers []string // modifier names held via hold mode (injected into key actions)
 )
 
-func isModifierKey(code int) bool {
-	switch code {
-	case 55, 54, 56, 60, 58, 61, 59, 62:
-		return true
+func isModifierKey(t keyTarget) bool { return modifierNameForKey(t) != "" }
+
+// modifierNameForKey returns the canonical modifier name for a target, or ""
+// if it is not a modifier. Classification is by NAME: a raw code cannot say,
+// because the registry is per-OS (macOS cmd=55 is `v` on Linux, Numpad* on
+// Windows). A code-only target is reverse-looked-up in the registry first.
+func modifierNameForKey(t keyTarget) string {
+	if t.name != "" {
+		return canonicalModifier(t.name)
 	}
-	return false
+	for _, n := range namesForCode(t.code) {
+		if m := canonicalModifier(n); m != "" {
+			return m
+		}
+	}
+	return ""
 }
 
-func modifierNameForCode(code int) string {
-	switch code {
-	case 55, 54:
+// canonicalModifier folds the modifier aliases onto one name, or "" if the
+// name is not a modifier.
+func canonicalModifier(name string) string {
+	switch strings.ToLower(name) {
+	case "cmd", "command", "meta", "right_cmd", "right_command":
 		return "cmd"
-	case 56, 60:
+	case "shift", "right_shift":
 		return "shift"
-	case 58, 61:
+	case "option", "opt", "alt", "right_option":
 		return "opt"
-	case 59, 62:
+	case "ctrl", "control", "right_ctrl", "right_control":
 		return "ctrl"
 	}
 	return ""
+}
+
+// namesForCode reverse-looks-up the registry. Codes are not unique (aliases
+// share one), so this returns every name that maps to it.
+func namesForCode(code int) []string {
+	mu.Lock()
+	defer mu.Unlock()
+	var out []string
+	for n, c := range state.KeyNamesMerged {
+		if int(c) == code {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // activeModifiers returns any modifiers currently held via hold mode.
@@ -61,15 +96,6 @@ func activeModifiers() []string {
 	result := make([]string, len(heldModifiers))
 	copy(result, heldModifiers)
 	return result
-}
-
-var modifierKeyCodes = map[string]int{
-	"cmd": 55, "command": 55,
-	"shift":  56,
-	"option": 58, "opt": 58, "alt": 58,
-	"ctrl": 59, "control": 59,
-	"right_cmd": 54, "right_shift": 60, "right_option": 61, "right_ctrl": 62,
-	"fn": 63,
 }
 
 const safetyTimeout = 30 * time.Second
@@ -111,12 +137,12 @@ func pressRawKey(code int, direction string) {
 	}, nil))
 }
 
-func startHold(code int, mods []string, repeat bool) {
+func startHold(t keyTarget, mods []string, repeat bool) {
 	// Modifier keys are tracked virtually — they get injected into
 	// subsequent key actions rather than sent as raw events (which
 	// would be undone by the actuator's lift_modifiers).
-	if isModifierKey(code) {
-		modName := modifierNameForCode(code)
+	if isModifierKey(t) {
+		modName := modifierNameForKey(t)
 		mu.Lock()
 		heldModifiers = append(heldModifiers, modName)
 		mu.Unlock()
@@ -128,25 +154,25 @@ func startHold(code int, mods []string, repeat bool) {
 	prev := activeHold
 	id := holdSeq.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	activeHold = &holdState{id: id, cancel: cancel, code: code, mods: mods}
+	activeHold = &holdState{id: id, cancel: cancel, key: t, mods: mods}
 	mu.Unlock()
 
 	if prev != nil {
 		prev.cancel()
-		releaseKeys(prev.code, prev.mods)
+		releaseKeys(prev.key, prev.mods)
 	}
 
 	pressModifiers(mods, "press")
-	pressRawKey(code, "press")
+	pressRawKey(t.code, "press")
 
 	if repeat {
-		go runRepeatLoop(ctx, id, code)
+		go runRepeatLoop(ctx, id, t)
 	}
 }
 
-func stopHold(code int, mods []string) {
-	if isModifierKey(code) {
-		modName := modifierNameForCode(code)
+func stopHold(t keyTarget, mods []string) {
+	if isModifierKey(t) {
+		modName := modifierNameForKey(t)
 		mu.Lock()
 		for i, m := range heldModifiers {
 			if m == modName {
@@ -170,24 +196,30 @@ func stopHold(code int, mods []string) {
 		h.cancel()
 	}
 
-	pressRawKey(code, "release")
+	pressRawKey(t.code, "release")
 	pressModifiers(mods, "release")
 }
 
-func releaseKeys(code int, mods []string) {
-	pressRawKey(code, "release")
+func releaseKeys(t keyTarget, mods []string) {
+	pressRawKey(t.code, "release")
 	pressModifiers(mods, "release")
 }
 
+// pressModifiers injects modifier keys by resolving their names through the
+// platform registry, so the codes are right on every OS. It used to carry its
+// own macOS keycode table, which injected `v` for cmd on Linux.
 func pressModifiers(mods []string, direction string) {
 	for _, m := range mods {
-		if code, ok := modifierKeyCodes[strings.ToLower(m)]; ok {
+		if canonicalModifier(m) == "" {
+			continue
+		}
+		if code, ok := resolveKeyCode(m); ok {
 			pressRawKey(code, direction)
 		}
 	}
 }
 
-func runRepeatLoop(ctx context.Context, id uint64, code int) {
+func runRepeatLoop(ctx context.Context, id uint64, t keyTarget) {
 	timer := time.NewTimer(repeatCfg.InitialDelay)
 	defer timer.Stop()
 
@@ -211,13 +243,13 @@ func runRepeatLoop(ctx context.Context, id uint64, code int) {
 				h := activeHold
 				activeHold = nil
 				mu.Unlock()
-				releaseKeys(h.code, h.mods)
+				releaseKeys(h.key, h.mods)
 			} else {
 				mu.Unlock()
 			}
 			return
 		case <-ticker.C:
-			pressRawKey(code, "click")
+			pressRawKey(t.code, "click")
 		}
 	}
 }

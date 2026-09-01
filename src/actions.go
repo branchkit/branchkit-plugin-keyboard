@@ -73,13 +73,16 @@ func handleInputKeyByName(p KeyByNameParams, req *branchkit.OnActionRequest) (an
 		if !ok {
 			return nil, nil
 		}
+		// Carry the NAME as well as the code: modifier classification has to
+		// be by name, since the registry is per-OS.
+		t := keyTarget{name: p.Name, code: code}
 		switch phase {
 		case "start":
-			startHold(code, p.Modifiers, false)
+			startHold(t, p.Modifiers, false)
 		case "repeat":
-			startHold(code, p.Modifiers, true)
+			startHold(t, p.Modifiers, true)
 		default:
-			stopHold(code, p.Modifiers)
+			stopHold(t, p.Modifiers)
 		}
 		return nil, nil
 	}
@@ -103,11 +106,11 @@ func handleInputKey(p KeyParams, req *branchkit.OnActionRequest) (any, error) {
 	if phase := holdPhase(req); phase != "" {
 		switch phase {
 		case "start":
-			startHold(p.Code, nil, false)
+			startHold(keyTarget{code: p.Code}, nil, false)
 		case "repeat":
-			startHold(p.Code, nil, true)
+			startHold(keyTarget{code: p.Code}, nil, true)
 		default:
-			stopHold(p.Code, nil)
+			stopHold(keyTarget{code: p.Code}, nil)
 		}
 		return nil, nil
 	}
@@ -125,13 +128,16 @@ func handleInputShortcutByName(p ShortcutByNameParams, req *branchkit.OnActionRe
 		if !ok {
 			return nil, nil
 		}
+		// Carry the NAME as well as the code: modifier classification has to
+		// be by name, since the registry is per-OS.
+		t := keyTarget{name: p.Name, code: code}
 		switch phase {
 		case "start":
-			startHold(code, p.Modifiers, false)
+			startHold(t, p.Modifiers, false)
 		case "repeat":
-			startHold(code, p.Modifiers, true)
+			startHold(t, p.Modifiers, true)
 		default:
-			stopHold(code, p.Modifiers)
+			stopHold(t, p.Modifiers)
 		}
 		return nil, nil
 	}
@@ -148,11 +154,11 @@ func handleInputShortcut(p ShortcutParams, req *branchkit.OnActionRequest) (any,
 	if phase := holdPhase(req); phase != "" {
 		switch phase {
 		case "start":
-			startHold(p.Code, p.Modifiers, false)
+			startHold(keyTarget{code: p.Code}, p.Modifiers, false)
 		case "repeat":
-			startHold(p.Code, p.Modifiers, true)
+			startHold(keyTarget{code: p.Code}, p.Modifiers, true)
 		default:
-			stopHold(p.Code, p.Modifiers)
+			stopHold(keyTarget{code: p.Code}, p.Modifiers)
 		}
 		return nil, nil
 	}
