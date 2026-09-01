@@ -139,12 +139,14 @@
           {
             "key": "spoken",
             "field_type": "string",
-            "label": "Spoken name"
+            "label": "Spoken name",
+            "required": true
           },
           {
             "key": "key",
             "field_type": "string",
-            "label": "Key name"
+            "label": "Key name",
+            "required": true
           }
         ],
         "feeds_matching": {
@@ -160,12 +162,14 @@
           {
             "key": "spoken",
             "field_type": "string",
-            "label": "Spoken name"
+            "label": "Spoken name",
+            "required": true
           },
           {
             "key": "key",
             "field_type": "string",
-            "label": "Modifier key"
+            "label": "Modifier key",
+            "required": true
           }
         ],
         "feeds_matching": {
