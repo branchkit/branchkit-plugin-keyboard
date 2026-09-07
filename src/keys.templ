@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 templ KeysSettings(data keysTemplateData) {
-	<div class="settings-table">
+	<bk-table columns="1fr 1fr 80px">
 		<div style="padding: 8px 20px; display: flex; align-items: center; justify-content: space-between;">
 			<span style="font-size: 11px; color: var(--text-dim);">{ fmt.Sprintf("%d", data.Count) } key names · Layout: { data.LayoutName }</span>
 		</div>
@@ -12,13 +12,13 @@ templ KeysSettings(data keysTemplateData) {
 				{ data.Error }
 			</div>
 		}
-		<div class="table-header" style="grid-template-columns: 1fr 1fr 80px;">
+		<div class="table-header" >
 			<div>Key Name</div>
 			<div>Your Keyboard</div>
 			<div>Keycode</div>
 		</div>
 		for _, k := range data.Keys {
-			<div class="settings-row" style="grid-template-columns: 1fr 1fr 80px;">
+			<div class="settings-row" >
 				<div class="label">
 					<span style="font-family: 'SF Mono', monospace; font-size: 12px;">{ k.Name }</span>
 				</div>
@@ -26,5 +26,5 @@ templ KeysSettings(data keysTemplateData) {
 				<div style="font-size: 11px; color: var(--text-dim);">{ fmt.Sprintf("%d", k.Keycode) }</div>
 			</div>
 		}
-	</div>
+	</bk-table>
 }
