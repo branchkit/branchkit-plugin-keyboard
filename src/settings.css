@@ -36,7 +36,7 @@
    because that is what the attribute said, and pruning it would tie this span's
    font to a class the keys tab does not own. */
 .keys-name {
-    font-family: 'SF Mono', monospace;
+    font-family: var(--font-code);
     font-size: var(--text-xs);
 }
 
@@ -95,7 +95,7 @@
     gap: var(--space-2);
 }
 .kb-combo-cell--full { grid-column: 1 / -1; }
-.kb-combo { font-family: 'SF Mono', monospace; }
+.kb-combo { font-family: var(--font-code); }
 
 /* Waiting for a key combo. Qualified because settings-components.css styles
    input[type="text"] at (0,1,1) and a bare class would lose to it — the inline
