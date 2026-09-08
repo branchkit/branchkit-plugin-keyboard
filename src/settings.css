@@ -42,3 +42,92 @@
 
 /* What that key actually types on the user's keyboard. */
 .keys-character { font-size: 13px; }
+
+/* --- Keybinds ------------------------------------------------------------ */
+
+/* Was a <style> block inside the templ, re-emitted into the morph target on
+   every render. It is the same stylesheet either way; this is the one that is
+   sent once. */
+@keyframes pulse {
+    0%, 100% { border-color: var(--accent); }
+    50% { border-color: rgba(0, 122, 255, 0.3); }
+}
+
+/* The header's own actions — bind a command, reset everything. */
+.kb-header-actions {
+    text-align: right;
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+/* Buttons that sit inside a row rather than under it. */
+.kb-small-btn {
+    font-size: 11px;
+    padding: 2px 8px;
+}
+
+/* A keydown the plugin could not turn into a binding. */
+.kb-bind-error {
+    padding: 8px 20px;
+    color: var(--error);
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Which plugin a group of keybinds came from. */
+.kb-group-header {
+    padding: 8px 20px;
+    background: var(--scrim-1);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+}
+
+/* The combo and the controls that act on it. The picker's copy spans the whole
+   row, because there are no other columns to line up with while capturing. */
+.kb-combo-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.kb-combo-cell--full { grid-column: 1 / -1; }
+.kb-combo { font-family: 'SF Mono', monospace; }
+
+/* Waiting for a key combo. Qualified because settings-components.css styles
+   input[type="text"] at (0,1,1) and a bare class would lose to it — the inline
+   style this replaced was the only thing that had been winning. */
+input[type="text"].kb-capture {
+    flex: 1;
+    border-color: var(--accent);
+    animation: pulse 1.5s infinite;
+}
+
+/* The bind-a-command picker, opened above the list. */
+.kb-picker { border-bottom: 2px solid var(--border); }
+.kb-picker-bar {
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--scrim-1);
+}
+.kb-picker-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+}
+.kb-picker-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+.kb-picker-empty {
+    padding: 12px 20px;
+    color: var(--text-dim);
+    font-size: 12px;
+}

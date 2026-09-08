@@ -45,19 +45,19 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"settings-table\"><div class=\"table-header\"><div>Keybind</div><div>Action</div><div>Source</div><div style=\"text-align: right; display: flex; gap: 6px; justify-content: flex-end;\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"settings-table\"><div class=\"table-header\"><div>Keybind</div><div>Action</div><div>Source</div><div class=\"kb-header-actions\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if !data.BindPickerOpen {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<button style=\"font-size: 11px; padding: 2px 8px;\" data-on:click=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<button class=\"kb-small-btn\" data-on:click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("open_bind_picker", ""))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 27, Col: 116}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 27, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -69,14 +69,14 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 			}
 		}
 		if data.HasOverrides {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<button style=\"font-size: 11px; padding: 2px 8px;\" data-on:click=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<button class=\"kb-small-btn\" data-on:click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("reset_all", ""))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 30, Col: 109}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 30, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -92,14 +92,14 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if data.BindError != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div style=\"padding: 8px 20px; color: var(--error); font-size: 12px; border-bottom: 1px solid var(--border);\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"kb-bind-error\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(data.BindError)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 35, Col: 129}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 35, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -117,7 +117,7 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 			}
 		}
 		for _, group := range data.Groups {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div style=\"padding: 8px 20px; background: var(--scrim-1); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"kb-group-header\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -153,12 +153,12 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"><div class=\"label\" style=\"display: flex; align-items: center; gap: 6px;\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"><div class=\"label kb-combo-cell\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				if data.RemappingCombo == row.ComboKey {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<input type=\"text\" readonly placeholder=\"Press new key combo...\" style=\"flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;\" id=\"remap-input\" data-init=\"document.getElementById('remap-input').focus()\" data-on:keydown=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<input type=\"text\" readonly placeholder=\"Press new key combo...\" class=\"kb-capture\" id=\"remap-input\" data-init=\"document.getElementById('remap-input').focus()\" data-on:keydown=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -202,14 +202,14 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<span style=\"font-family: 'SF Mono', monospace;\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<span class=\"kb-combo\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(row.ComboDisplay)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 60, Col: 74}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 60, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -306,7 +306,7 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div><style>\n\t\t@keyframes pulse {\n\t\t\t0%, 100% { border-color: var(--accent); }\n\t\t\t50% { border-color: rgba(0, 122, 255, 0.3); }\n\t\t}\n\t</style>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -338,14 +338,14 @@ func BindPicker(data KeybindSettingsData) templ.Component {
 			templ_7745c5c3_Var18 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div style=\"border-bottom: 2px solid var(--border);\"><div style=\"padding: 8px 20px; display: flex; align-items: center; gap: 8px; background: var(--scrim-1);\"><span style=\"font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;\">Bind a command</span> <span style=\"font-size: 11px; color: var(--text-dim);\">— pick a command, then press the key combo. Use the search box to narrow the list.</span> <span style=\"flex: 1;\"></span> <button class=\"icon-btn\" title=\"Close\" data-on:click=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div class=\"kb-picker\"><div class=\"kb-picker-bar\"><span class=\"kb-picker-title\">Bind a command</span> <span class=\"kb-picker-hint\">— pick a command, then press the key combo. Use the search box to narrow the list.</span> <span class=\"grow\"></span> <button class=\"icon-btn\" title=\"Close\" data-on:click=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("close_bind_picker", ""))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 98, Col: 103}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 92, Col: 103}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -356,27 +356,27 @@ func BindPicker(data KeybindSettingsData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if data.PendingBind != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<div class=\"settings-row\"><div class=\"label\" style=\"display: flex; align-items: center; gap: 6px; grid-column: 1 / -1;\"><span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<div class=\"settings-row\"><div class=\"label kb-combo-cell kb-combo-cell--full\"><span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(data.PendingBind)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 103, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 97, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</span> <input type=\"text\" readonly placeholder=\"Press key combo...\" style=\"flex: 1; border-color: var(--accent); animation: pulse 1.5s infinite;\" id=\"bind-input\" data-init=\"document.getElementById('bind-input').focus()\" data-on:keydown=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</span> <input type=\"text\" readonly placeholder=\"Press key combo...\" class=\"kb-capture\" id=\"bind-input\" data-init=\"document.getElementById('bind-input').focus()\" data-on:keydown=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs("evt.preventDefault(); evt.stopPropagation(); " + branchkit.MethodPost("bind_keydown", "{code: evt.code, key: evt.key, ctrl: evt.ctrlKey, alt: evt.altKey, shift: evt.shiftKey, meta: evt.metaKey}"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 111, Col: 220}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 105, Col: 220}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -389,7 +389,7 @@ func BindPicker(data KeybindSettingsData) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("cancel_bind", ""))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 112, Col: 76}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 106, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -402,7 +402,7 @@ func BindPicker(data KeybindSettingsData) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("cancel_bind", ""))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 114, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 108, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -421,33 +421,33 @@ func BindPicker(data KeybindSettingsData) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(r.Pattern)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 120, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 114, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</div><div class=\"value\" style=\"color: var(--text-dim);\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</div><div class=\"value\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(r.Owner)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 121, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 115, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</div><div></div><div style=\"text-align: right;\"><button style=\"font-size: 11px; padding: 2px 8px;\" data-on:click__debounce.500ms.leading=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</div><div></div><div class=\"align-right\"><button class=\"kb-small-btn\" data-on:click__debounce.500ms.leading=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(branchkit.MethodPost("choose_bind", fmt.Sprintf("{id: %s}", string(r.IDJSON))))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 124, Col: 175}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 118, Col: 153}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -463,7 +463,7 @@ func BindPicker(data KeybindSettingsData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if len(data.BindRows) == 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<div style=\"padding: 12px 20px; color: var(--text-dim); font-size: 12px;\">No bindable commands match the search.</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<div class=\"kb-picker-empty\">No bindable commands match the search.</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
