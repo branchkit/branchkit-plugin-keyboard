@@ -28,7 +28,7 @@
     background: color-mix(in oklab, var(--danger) 10%, transparent);
     color: var(--danger);
     font-size: var(--text-xs);
-    border-bottom: 1px solid color-mix(in oklab, var(--danger) 20%, transparent);
+    border-bottom: var(--border-hairline) solid color-mix(in oklab, var(--danger) 20%, transparent);
 }
 
 /* The key's platform name — monospace, since these are identifiers. The family
@@ -72,19 +72,19 @@
     padding: var(--space-2) var(--space-5);
     color: var(--error);
     font-size: var(--text-xs);
-    border-bottom: 1px solid var(--border);
+    border-bottom: var(--border-hairline) solid var(--border);
 }
 
 /* Which plugin a group of keybinds came from. */
 .kb-group-header {
     padding: var(--space-2) var(--space-5);
     background: var(--scrim-1);
-    border-bottom: 1px solid var(--border);
+    border-bottom: var(--border-hairline) solid var(--border);
     font-size: var(--text-xs);
     font-weight: 700;
     text-transform: uppercase;
     color: var(--text-dim);
-    letter-spacing: 0.05em;
+    letter-spacing: var(--tracking-wide);
 }
 
 /* The combo and the controls that act on it. The picker's copy spans the whole
@@ -107,7 +107,7 @@ input[type="text"].kb-capture {
 }
 
 /* The bind-a-command picker, opened above the list. */
-.kb-picker { border-bottom: 2px solid var(--border); }
+.kb-picker { border-bottom: var(--border-thick) solid var(--border); }
 .kb-picker-bar {
     padding: var(--space-2) var(--space-5);
     display: flex;
@@ -120,7 +120,7 @@ input[type="text"].kb-capture {
     font-weight: 700;
     text-transform: uppercase;
     color: var(--text-dim);
-    letter-spacing: 0.05em;
+    letter-spacing: var(--tracking-wide);
 }
 .kb-picker-hint {
     font-size: var(--text-xs);
