@@ -16,7 +16,7 @@
    and not the thing you scan for. */
 .keys-summary-text,
 .keys-keycode {
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--text-dim);
 }
 
@@ -27,7 +27,7 @@
     padding: 8px 20px;
     background: color-mix(in oklab, var(--danger) 10%, transparent);
     color: var(--danger);
-    font-size: 12px;
+    font-size: var(--text-xs);
     border-bottom: 1px solid color-mix(in oklab, var(--danger) 20%, transparent);
 }
 
@@ -37,11 +37,11 @@
    font to a class the keys tab does not own. */
 .keys-name {
     font-family: 'SF Mono', monospace;
-    font-size: 12px;
+    font-size: var(--text-xs);
 }
 
 /* What that key actually types on the user's keyboard. */
-.keys-character { font-size: 13px; }
+.keys-character { font-size: var(--text-sm); }
 
 /* --- Keybinds ------------------------------------------------------------ */
 
@@ -63,7 +63,7 @@
 
 /* Buttons that sit inside a row rather than under it. */
 .kb-small-btn {
-    font-size: 11px;
+    font-size: var(--text-xs);
     padding: 2px 8px;
 }
 
@@ -71,7 +71,7 @@
 .kb-bind-error {
     padding: 8px 20px;
     color: var(--error);
-    font-size: 12px;
+    font-size: var(--text-xs);
     border-bottom: 1px solid var(--border);
 }
 
@@ -80,7 +80,7 @@
     padding: 8px 20px;
     background: var(--scrim-1);
     border-bottom: 1px solid var(--border);
-    font-size: 11px;
+    font-size: var(--text-xs);
     font-weight: 700;
     text-transform: uppercase;
     color: var(--text-dim);
@@ -116,18 +116,18 @@ input[type="text"].kb-capture {
     background: var(--scrim-1);
 }
 .kb-picker-title {
-    font-size: 11px;
+    font-size: var(--text-xs);
     font-weight: 700;
     text-transform: uppercase;
     color: var(--text-dim);
     letter-spacing: 0.05em;
 }
 .kb-picker-hint {
-    font-size: 11px;
+    font-size: var(--text-xs);
     color: var(--text-dim);
 }
 .kb-picker-empty {
     padding: 12px 20px;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--text-xs);
 }
