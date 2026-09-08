@@ -25,10 +25,10 @@
    swapping it in would change the rendering rather than move it. */
 .keys-error {
     padding: 8px 20px;
-    background: rgba(255, 59, 48, 0.1);
+    background: color-mix(in oklab, var(--danger) 10%, transparent);
     color: var(--danger);
     font-size: 12px;
-    border-bottom: 1px solid rgba(255, 59, 48, 0.2);
+    border-bottom: 1px solid color-mix(in oklab, var(--danger) 20%, transparent);
 }
 
 /* The key's platform name — monospace, since these are identifiers. The family
@@ -50,7 +50,7 @@
    sent once. */
 @keyframes pulse {
     0%, 100% { border-color: var(--accent); }
-    50% { border-color: rgba(0, 122, 255, 0.3); }
+    50% { border-color: color-mix(in oklab, var(--accent) 30%, transparent); }
 }
 
 /* The header's own actions — bind a command, reset everything. */
