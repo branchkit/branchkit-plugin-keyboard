@@ -8,7 +8,7 @@ templ KeysSettings(data keysTemplateData) {
 			<span style="font-size: 11px; color: var(--text-dim);">{ fmt.Sprintf("%d", data.Count) } key names · Layout: { data.LayoutName }</span>
 		</div>
 		if data.Error != "" {
-			<div style="padding: 8px 20px; background: rgba(255,59,48,0.1); color: #ff3b30; font-size: 12px; border-bottom: 1px solid rgba(255,59,48,0.2);">
+			<div style="padding: 8px 20px; background: rgba(255,59,48,0.1); color: var(--danger); font-size: 12px; border-bottom: 1px solid rgba(255,59,48,0.2);">
 				{ data.Error }
 			</div>
 		}

@@ -92,14 +92,14 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if data.BindError != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div style=\"padding: 8px 20px; color: var(--error, #e5534b); font-size: 12px; border-bottom: 1px solid var(--border);\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div style=\"padding: 8px 20px; color: var(--error); font-size: 12px; border-bottom: 1px solid var(--border);\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(data.BindError)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 35, Col: 138}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `settings.templ`, Line: 35, Col: 129}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -117,7 +117,7 @@ func KeybindSettings(data KeybindSettingsData) templ.Component {
 			}
 		}
 		for _, group := range data.Groups {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div style=\"padding: 8px 20px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div style=\"padding: 8px 20px; background: var(--scrim-1); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -338,7 +338,7 @@ func BindPicker(data KeybindSettingsData) templ.Component {
 			templ_7745c5c3_Var18 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div style=\"border-bottom: 2px solid var(--border);\"><div style=\"padding: 8px 20px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03);\"><span style=\"font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;\">Bind a command</span> <span style=\"font-size: 11px; color: var(--text-dim);\">— pick a command, then press the key combo. Use the search box to narrow the list.</span> <span style=\"flex: 1;\"></span> <button class=\"icon-btn\" title=\"Close\" data-on:click=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div style=\"border-bottom: 2px solid var(--border);\"><div style=\"padding: 8px 20px; display: flex; align-items: center; gap: 8px; background: var(--scrim-1);\"><span style=\"font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.05em;\">Bind a command</span> <span style=\"font-size: 11px; color: var(--text-dim);\">— pick a command, then press the key combo. Use the search box to narrow the list.</span> <span style=\"flex: 1;\"></span> <button class=\"icon-btn\" title=\"Close\" data-on:click=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

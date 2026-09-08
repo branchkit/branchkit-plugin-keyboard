@@ -62,7 +62,7 @@ func KeysSettings(data keysTemplateData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if data.Error != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div style=\"padding: 8px 20px; background: rgba(255,59,48,0.1); color: #ff3b30; font-size: 12px; border-bottom: 1px solid rgba(255,59,48,0.2);\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div style=\"padding: 8px 20px; background: rgba(255,59,48,0.1); color: var(--danger); font-size: 12px; border-bottom: 1px solid rgba(255,59,48,0.2);\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
