@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/branchkit/plugin-sdk-go"
 )
+
+//go:embed settings.css
+var keyboardCSS string
 
 // --- Plugin state ---
 
@@ -146,7 +150,7 @@ func handleRenderSettings(req *branchkit.RenderSettingsRequest) (any, error) {
 		mu.Unlock()
 	}
 
-	return branchkit.RenderSettingsResponse{HTML: html}, nil
+	return branchkit.RenderSettingsResponse{HTML: html, CSS: &keyboardCSS}, nil
 }
 
 func handleStartRemap(req *StartRemapRequest) (any, error) {

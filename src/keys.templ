@@ -4,11 +4,11 @@ import "fmt"
 
 templ KeysSettings(data keysTemplateData) {
 	<bk-table columns="1fr 1fr 80px">
-		<div style="padding: 8px 20px; display: flex; align-items: center; justify-content: space-between;">
-			<span style="font-size: 11px; color: var(--text-dim);">{ fmt.Sprintf("%d", data.Count) } key names · Layout: { data.LayoutName }</span>
+		<div class="keys-summary">
+			<span class="keys-summary-text">{ fmt.Sprintf("%d", data.Count) } key names · Layout: { data.LayoutName }</span>
 		</div>
 		if data.Error != "" {
-			<div style="padding: 8px 20px; background: rgba(255,59,48,0.1); color: var(--danger); font-size: 12px; border-bottom: 1px solid rgba(255,59,48,0.2);">
+			<div class="keys-error">
 				{ data.Error }
 			</div>
 		}
@@ -20,10 +20,10 @@ templ KeysSettings(data keysTemplateData) {
 		for _, k := range data.Keys {
 			<div class="settings-row">
 				<div class="label">
-					<span style="font-family: 'SF Mono', monospace; font-size: 12px;">{ k.Name }</span>
+					<span class="keys-name">{ k.Name }</span>
 				</div>
-				<div style="font-size: 13px;">{ k.Character }</div>
-				<div style="font-size: 11px; color: var(--text-dim);">{ fmt.Sprintf("%d", k.Keycode) }</div>
+				<div class="keys-character">{ k.Character }</div>
+				<div class="keys-keycode">{ fmt.Sprintf("%d", k.Keycode) }</div>
 			</div>
 		}
 	</bk-table>

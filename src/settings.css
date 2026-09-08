@@ -1,0 +1,44 @@
+/* The keyboard plugin's settings tabs. One stylesheet for both; sections below
+   are per tab. Shipped through RenderSettingsResponse.CSS. */
+
+/* --- Keys ---------------------------------------------------------------- */
+
+/* Summary bar above the table: how many key names, and which layout they were
+   read from. */
+.keys-summary {
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* The summary line and the Keycode column read the same way — small, secondary,
+   and not the thing you scan for. */
+.keys-summary-text,
+.keys-keycode {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+/* Shown when the layout could not be read. The two rgba(255,59,48,…) tints are
+   the pre-token danger red, kept literal: --danger is a different colour, and
+   swapping it in would change the rendering rather than move it. */
+.keys-error {
+    padding: 8px 20px;
+    background: rgba(255, 59, 48, 0.1);
+    color: var(--danger);
+    font-size: 12px;
+    border-bottom: 1px solid rgba(255, 59, 48, 0.2);
+}
+
+/* The key's platform name — monospace, since these are identifiers. The family
+   is already inherited from the .label cell around it; it is restated here
+   because that is what the attribute said, and pruning it would tie this span's
+   font to a class the keys tab does not own. */
+.keys-name {
+    font-family: 'SF Mono', monospace;
+    font-size: 12px;
+}
+
+/* What that key actually types on the user's keyboard. */
+.keys-character { font-size: 13px; }
