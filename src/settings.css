@@ -78,7 +78,9 @@
 /* Which plugin a group of keybinds came from. */
 .kb-group-header {
     padding: var(--size--4) var(--size-1);
-    background: var(--scrim-1);
+    background: var(--neutral-2);
+    --_ink: var(--neutral-2-on);
+    --_ink-dim: var(--neutral-2-dim);
     border-bottom: var(--border-width-0) solid var(--neutral-variant-3);
     font-size: var(--font-size--2);
     font-weight: 700;
@@ -113,7 +115,9 @@ input[type="text"].kb-capture {
     display: flex;
     align-items: center;
     gap: var(--size--4);
-    background: var(--scrim-1);
+    background: var(--neutral-2);
+    --_ink: var(--neutral-2-on);
+    --_ink-dim: var(--neutral-2-dim);
 }
 .kb-picker-title {
     font-size: var(--font-size--2);
