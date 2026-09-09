@@ -26,7 +26,7 @@
 .keys-error {
     padding: var(--size--4) var(--size-1);
     background: color-mix(in oklab, var(--brand-danger-0) 10%, transparent);
-    color: var(--brand-danger-0);
+    color: color-mix(in oklab, var(--brand-danger-0) 70%, var(--_ink));
     font-size: var(--font-size--2);
     border-bottom: var(--border-width-0) solid color-mix(in oklab, var(--brand-danger-0) 20%, transparent);
 }
