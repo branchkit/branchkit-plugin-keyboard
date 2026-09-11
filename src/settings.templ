@@ -17,7 +17,7 @@ type KeybindSettingsData struct {
 }
 
 templ KeybindSettings(data KeybindSettingsData) {
-	<div class="settings-table">
+	<bk-table columns="1fr 2fr 100px 100px" narrow="ladder" priority="0 0 1 0">
 		<div class="table-header">
 			<div>Keybind</div>
 			<div>Action</div>
@@ -74,10 +74,11 @@ templ KeybindSettings(data KeybindSettingsData) {
 					</div>
 					<div class="value">{ row.ActionLabel }</div>
 					<div><span class={ "badge", row.BadgeClass }>{ row.SourceLabel }</span></div>
+					<div></div>
 				</div>
 			}
 		}
-	</div>
+	</bk-table>
 }
 
 // The bind-a-command picker: every statically bindable command, filtered by
