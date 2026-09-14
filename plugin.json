@@ -135,6 +135,7 @@
         "description": "Typeable characters for the active keyboard layout."
       },
       "keys": {
+        "id_strategy": { "type": "by_field", "field": "spoken" },
         "preset": "named_entities",
         "fields": [
           {
@@ -158,6 +159,7 @@
         "description": "Spoken key names for voice command matching."
       },
       "modifiers": {
+        "id_strategy": { "type": "by_field", "field": "spoken" },
         "preset": "named_entities",
         "fields": [
           {
