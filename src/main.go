@@ -146,7 +146,7 @@ func (h *Host) handleStartRemap(req *StartRemapRequest) (any, error) {
 	h.state.RemappingCombo = req.Combo
 
 	h.pauseKeybinds()
-	return OkResponse{OK: true}, nil
+	return nil, nil
 }
 
 func (h *Host) handleRemap(req *RemapRequest) (any, error) {
@@ -200,7 +200,7 @@ func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 	parsed, err := h.parseKeyEvent(req.DOMKeyEvent)
 	if err != nil {
 		branchkit.Logf("keyboard", "remap keydown: parse failed: %v", err)
-		return OkResponse{OK: false}, nil
+		return nil, nil
 	}
 
 	// Escape → cancel remap
@@ -209,12 +209,12 @@ func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 		defer h.mu.Unlock()
 		h.state.RemappingCombo = ""
 		h.resumeKeybinds()
-		return OkResponse{OK: true}, nil
+		return nil, nil
 	}
 
 	// Bare modifier or unknown key → no-op
 	if parsed.IsBareModifier {
-		return OkResponse{OK: true}, nil
+		return nil, nil
 	}
 
 	// No modifiers → reject
@@ -222,7 +222,7 @@ func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 		h.mu.Lock()
 		h.state.KeysError = "Remap requires at least one modifier key."
 		h.mu.Unlock()
-		return OkResponse{OK: false}, nil
+		return nil, nil
 	}
 
 	// Valid combo → apply remap
@@ -230,7 +230,7 @@ func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 	result := h.applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
 	h.mu.Unlock()
 	h.registerKeybinds(result)
-	return result, nil
+	return nil, nil
 }
 
 func (h *Host) handleCancelRemap(_ *struct{}) (any, error) {
@@ -239,7 +239,7 @@ func (h *Host) handleCancelRemap(_ *struct{}) (any, error) {
 	h.state.RemappingCombo = ""
 
 	h.resumeKeybinds()
-	return OkResponse{OK: true}, nil
+	return nil, nil
 }
 
 func (h *Host) handleReset(req *ResetRequest) (any, error) {
@@ -274,7 +274,7 @@ func (h *Host) handleReset(req *ResetRequest) (any, error) {
 	h.mu.Unlock()
 	h.registerKeybinds(snapshot)
 
-	return snapshot, nil
+	return nil, nil
 }
 
 func (h *Host) handleResetAll(_ *struct{}) (any, error) {
@@ -284,7 +284,7 @@ func (h *Host) handleResetAll(_ *struct{}) (any, error) {
 	h.mu.Unlock()
 	h.registerKeybinds(snapshot)
 
-	return snapshot, nil
+	return nil, nil
 }
 
 // pauseKeybinds / resumeKeybinds hold and release the `suppress_keybinds`

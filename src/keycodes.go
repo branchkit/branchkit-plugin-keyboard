@@ -1,7 +1,6 @@
 package main
 
 import (
-
 	branchkit "github.com/branchkit/plugin-sdk-go"
 )
 

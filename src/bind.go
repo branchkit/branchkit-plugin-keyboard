@@ -68,11 +68,11 @@ func (h *Host) handleOpenBindPicker(_ *struct{}) (any, error) {
 	defer h.mu.Unlock()
 	if err != nil {
 		h.state.BindError = "Could not list commands: " + err.Error()
-		return OkResponse{OK: false}, nil
+		return nil, nil
 	}
 	h.state.BindPicker = cands
 	h.state.PendingBind = nil
-	return OkResponse{OK: true}, nil
+	return nil, nil
 }
 
 func (h *Host) handleCloseBindPicker(_ *struct{}) (any, error) {
@@ -84,7 +84,7 @@ func (h *Host) handleCloseBindPicker(_ *struct{}) (any, error) {
 	if pending {
 		h.resumeKeybinds()
 	}
-	return OkResponse{OK: true}, nil
+	return nil, nil
 }
 
 func (h *Host) handleChooseBind(req *ChooseBindRequest) (any, error) {
@@ -101,7 +101,7 @@ func (h *Host) handleChooseBind(req *ChooseBindRequest) (any, error) {
 	if found {
 		h.pauseKeybinds()
 	}
-	return OkResponse{OK: found}, nil
+	return nil, nil
 }
 
 func (h *Host) handleCancelBind(_ *struct{}) (any, error) {
@@ -109,7 +109,7 @@ func (h *Host) handleCancelBind(_ *struct{}) (any, error) {
 	h.state.PendingBind = nil
 	h.mu.Unlock()
 	h.resumeKeybinds()
-	return OkResponse{OK: true}, nil
+	return nil, nil
 }
 
 func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
@@ -121,7 +121,7 @@ func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
 	parsed, err := h.parseKeyEvent(req.DOMKeyEvent)
 	if err != nil {
 		branchkit.Logf("keyboard", "bind keydown: parse failed: %v", err)
-		return OkResponse{OK: false}, nil
+		return nil, nil
 	}
 
 	// Escape → cancel the capture, keep the picker open.
@@ -129,20 +129,20 @@ func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
 		return h.handleCancelBind(nil)
 	}
 	if parsed.IsBareModifier {
-		return OkResponse{OK: true}, nil
+		return nil, nil
 	}
 	if !parsed.HasModifiers {
 		h.mu.Lock()
 		h.state.BindError = "A binding needs at least one modifier key."
 		h.mu.Unlock()
-		return OkResponse{OK: false}, nil
+		return nil, nil
 	}
 
 	h.mu.Lock()
 	pending := h.state.PendingBind
 	if pending == nil {
 		h.mu.Unlock()
-		return OkResponse{OK: false}, nil
+		return nil, nil
 	}
 	// The binding is a user override: it wins over any plugin bind on the
 	// same combo, exactly as a remap does, and Reset removes it.
@@ -156,5 +156,5 @@ func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
 	// Outside the lock: registration is an RPC (same rule as handleRemap).
 	h.registerKeybinds(snapshot)
 	h.resumeKeybinds()
-	return snapshot, nil
+	return nil, nil
 }
