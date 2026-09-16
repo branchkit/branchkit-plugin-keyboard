@@ -1,16 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"html/template"
 	"sort"
 	"strings"
 
-	"github.com/a-h/templ"
 	"github.com/branchkit/plugin-sdk-go"
 )
+
 
 type keybindRowView struct {
 	ComboDisplay string
@@ -35,7 +33,7 @@ type bindRowView struct {
 	Owner   string
 }
 
-func renderSettings(ps *PluginState, search string) string {
+func renderSettings(ps *PluginState, search string) (string, error) {
 	// Group entries by (key, modifiers) ignoring event type
 	type comboGroupKey struct {
 		Key  string
@@ -188,8 +186,9 @@ func renderSettings(ps *PluginState, search string) string {
 		BindError:      bindError,
 	}
 
-	return renderTempl(KeybindSettings(data))
+	return branchkit.RenderComponent(KeybindSettings(data))
 }
+
 
 func ifStr(cond bool, a, b string) string {
 	if cond {
@@ -198,11 +197,4 @@ func ifStr(cond bool, a, b string) string {
 	return b
 }
 
-func renderTempl(c templ.Component) string {
-	var buf bytes.Buffer
-	if err := c.Render(context.Background(), &buf); err != nil {
-		branchkit.Logf("keyboard", "templ render error: %v", err)
-		return ""
-	}
-	return buf.String()
-}
+

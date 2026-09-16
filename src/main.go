@@ -140,21 +140,16 @@ func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
 	return snapshot, nil
 }
 
-func handleRenderSettings(req *branchkit.RenderSettingsRequest) (any, error) {
-	var html string
-	search := strings.ToLower(req.Search)
-
-	switch req.TabKey {
-	case "keys":
-		html = renderKeysSettings(search)
-	default:
-		mu.Lock()
-		html = renderSettings(state, search)
-		mu.Unlock()
-	}
-
-	return branchkit.RenderSettingsResponse{HTML: html, CSS: &keyboardCSS}, nil
+func renderKeybindsTab(req *branchkit.RenderSettingsRequest) (string, error) {
+	mu.Lock()
+	defer mu.Unlock()
+	return renderSettings(state, strings.ToLower(req.Search))
 }
+
+func renderKeysTab(req *branchkit.RenderSettingsRequest) (string, error) {
+	return renderKeysSettings(strings.ToLower(req.Search))
+}
+
 
 func handleStartRemap(req *StartRemapRequest) (any, error) {
 	mu.Lock()
@@ -685,7 +680,10 @@ func main() {
 
 	// Register handlers (actuator→plugin requests)
 	branchkit.HandleTyped(plugin, "build_registry", handleBuildRegistry)
-	branchkit.HandleTyped(plugin, "render_settings", handleRenderSettings)
+	plugin.SettingsCSS(keyboardCSS)
+	plugin.SettingsTab("keybinds", renderKeybindsTab)
+	plugin.SettingsTab("keys", renderKeysTab)
+
 	branchkit.HandleTyped(plugin, "start_remap", handleStartRemap)
 	branchkit.HandleTyped(plugin, "remap", handleRemap)
 	branchkit.HandleTyped(plugin, "cancel_remap", handleCancelRemap)

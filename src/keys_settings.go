@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/branchkit/plugin-sdk-go"
 )
+
 
 type keyNameEntry struct {
 	Name    string `json:"name"`
@@ -55,7 +58,7 @@ func isPrintable(s string) bool {
 	return true
 }
 
-func renderKeysSettings(search string) string {
+func renderKeysSettings(search string) (string, error) {
 	keys := localKeyNames()
 
 	// Read layout data from local state (cached at startup)
@@ -102,5 +105,6 @@ func renderKeysSettings(search string) string {
 		LayoutName: layoutName,
 	}
 
-	return renderTempl(KeysSettings(data))
+	return branchkit.RenderComponent(KeysSettings(data))
 }
+
