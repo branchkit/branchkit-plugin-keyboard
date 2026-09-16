@@ -150,7 +150,6 @@ func renderKeysTab(req *branchkit.RenderSettingsRequest) (string, error) {
 	return renderKeysSettings(strings.ToLower(req.Search))
 }
 
-
 func handleStartRemap(req *StartRemapRequest) (any, error) {
 	mu.Lock()
 	defer mu.Unlock()

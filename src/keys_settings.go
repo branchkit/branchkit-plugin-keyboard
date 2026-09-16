@@ -8,7 +8,6 @@ import (
 	"github.com/branchkit/plugin-sdk-go"
 )
 
-
 type keyNameEntry struct {
 	Name    string `json:"name"`
 	Keycode uint16 `json:"keycode"`
@@ -107,4 +106,3 @@ func renderKeysSettings(search string) (string, error) {
 
 	return branchkit.RenderComponent(KeysSettings(data))
 }
-
