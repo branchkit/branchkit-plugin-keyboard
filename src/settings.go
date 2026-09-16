@@ -1,24 +1,20 @@
 package main
 
 import (
-	"encoding/json"
-	"html/template"
 	"sort"
 	"strings"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
 
-
 type keybindRowView struct {
 	ComboDisplay string
 	ComboKey     string
-	ComboKeyJSON template.JS // JSON-escaped for safe use in Datastar expressions
 	ActionLabel  string
 	BadgeClass   string
 	SourceLabel  string
 	IsOverride   bool
-	IsHoldJSON   template.JS // "true" or "false" for safe JS embedding
+	IsHold       bool
 }
 
 type keybindGroupView struct {
@@ -28,7 +24,6 @@ type keybindGroupView struct {
 
 type bindRowView struct {
 	ID      string
-	IDJSON  template.JS // JSON-escaped for safe use in Datastar expressions
 	Pattern string
 	Owner   string
 }
@@ -94,16 +89,14 @@ func renderSettings(ps *PluginState, search string) (string, error) {
 				hasOverrides = true
 			}
 
-			ckJSON, _ := json.Marshal(ck)
 			rowsBySource[groupName] = append(rowsBySource[groupName], keybindRowView{
 				ComboDisplay: comboDisplay,
 				ComboKey:     ck,
-				ComboKeyJSON: template.JS(string(ckJSON)),
 				ActionLabel:  actionLabel,
 				BadgeClass:   ifStr(isOverride, "badge-user", "badge-core"),
 				SourceLabel:  sourceBadgeLabel(downEntry.Entry.Source),
 				IsOverride:   isOverride,
-				IsHoldJSON:   "true",
+				IsHold:       true,
 			})
 		} else {
 			for _, e := range entries {
@@ -123,16 +116,14 @@ func renderSettings(ps *PluginState, search string) (string, error) {
 					hasOverrides = true
 				}
 
-				ckJSON2, _ := json.Marshal(ck)
 				rowsBySource[groupName] = append(rowsBySource[groupName], keybindRowView{
 					ComboDisplay: comboDisplay,
 					ComboKey:     ck,
-					ComboKeyJSON: template.JS(string(ckJSON2)),
 					ActionLabel:  actionLabel,
 					BadgeClass:   ifStr(isOverride, "badge-user", "badge-core"),
 					SourceLabel:  sourceBadgeLabel(e.Entry.Source),
 					IsOverride:   isOverride,
-					IsHoldJSON:   "false",
+					IsHold:       false,
 				})
 			}
 		}
@@ -160,10 +151,8 @@ func renderSettings(ps *PluginState, search string) (string, error) {
 				!strings.Contains(strings.ToLower(c.Owner), search) {
 				continue
 			}
-			idJSON, _ := json.Marshal(c.ID)
 			bindRows = append(bindRows, bindRowView{
 				ID:      c.ID,
-				IDJSON:  template.JS(string(idJSON)),
 				Pattern: c.Pattern,
 				Owner:   c.Owner,
 			})
@@ -189,12 +178,9 @@ func renderSettings(ps *PluginState, search string) (string, error) {
 	return branchkit.RenderComponent(KeybindSettings(data))
 }
 
-
 func ifStr(cond bool, a, b string) string {
 	if cond {
 		return a
 	}
 	return b
 }
-
-
