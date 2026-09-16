@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 
 	branchkit "github.com/branchkit/plugin-sdk-go"
 )
@@ -38,8 +37,5 @@ type ParsedKeyEvent = branchkit.InputParseKeyEventResponse
 // `fetchBindableCommands`.
 func (h *Host) parseKeyEventDefault(ev DOMKeyEvent) (ParsedKeyEvent, error) {
 	var parsed ParsedKeyEvent
-	if h.plugin == nil {
-		return parsed, fmt.Errorf("no plugin connection")
-	}
 	return parsed, h.plugin.Call("input.parse_key_event", ev, &parsed)
 }

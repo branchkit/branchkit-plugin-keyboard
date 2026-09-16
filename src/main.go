@@ -300,9 +300,6 @@ func (h *Host) handleResetAll(_ *struct{}) (any, error) {
 // `cleanup_terminated_plugin` if this process dies mid-capture, on every
 // platform. No boot-time reconcile needed anymore for exactly that reason.
 func (h *Host) pauseKeybinds() {
-	if h.plugin == nil {
-		return
-	}
 	out, err := h.plugin.AssertEffect("suppress_keybinds")
 	if err != nil {
 		branchkit.Logf("keyboard", "suppress_keybinds assert failed: %v", err)
@@ -316,9 +313,6 @@ func (h *Host) pauseKeybinds() {
 }
 
 func (h *Host) resumeKeybinds() {
-	if h.plugin == nil {
-		return
-	}
 	if _, _, err := h.plugin.RetractEffect("suppress_keybinds"); err != nil {
 		branchkit.Logf("keyboard", "suppress_keybinds retract failed: %v", err)
 	}
@@ -336,9 +330,6 @@ func (h *Host) resumeKeybinds() {
 // combos until the next plugin restart. A test seam (var) so handler tests
 // can assert the registration actually happens.
 func (h *Host) registerKeybindsDefault(snapshot RegistrySnapshot) {
-	if h.plugin == nil {
-		return
-	}
 	regBody := struct {
 		Snapshot any `json:"snapshot"`
 	}{Snapshot: snapshot}

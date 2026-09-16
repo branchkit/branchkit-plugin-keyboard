@@ -66,9 +66,6 @@ func triggerEntries(reg InternalRegistry) []branchkit.CollectionPutEntry {
 // reply. Scoped to this plugin's own records — other dispatchers' triggers
 // are untouched.
 func (h *Host) syncTriggers(reg InternalRegistry) {
-	if h.plugin == nil {
-		return
-	}
 	entries := triggerEntries(reg)
 	corr := h.plugin.CurrentCorrelation()
 	go branchkit.RunWithCorrelation(corr, func() {
