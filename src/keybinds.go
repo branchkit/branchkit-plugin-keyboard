@@ -255,17 +255,17 @@ func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
 
 // Var seams so handler tests can run the real remap/reset flows without a
 // live actuator behind plugin.Call.
-var loadUserKeybindOverrides = func() map[string]Binding {
-	return loadOverridesFromCollection()
+func (h *Host) loadUserKeybindOverridesDefault() map[string]Binding {
+	return h.loadOverridesFromCollection()
 }
 
-var saveUserKeybindOverrides = func(overrides map[string]Binding) {
-	saveOverridesToCollection(overrides)
+func (h *Host) saveUserKeybindOverridesDefault(overrides map[string]Binding) {
+	h.saveOverridesToCollection(overrides)
 }
 
 // --- Registry build ---
 
-func buildRegistry(
+func (h *Host) buildRegistry(
 	keybindsByPlugin map[string]map[string]Binding,
 ) InternalRegistry {
 	reg := newRegistry()
@@ -298,7 +298,7 @@ func buildRegistry(
 	}
 
 	// 2. User TOML overrides (always win)
-	userOverrides := loadUserKeybindOverrides()
+	userOverrides := h.loadUserKeybindOverrides()
 	for comboStr, b := range userOverrides {
 		combo, ok := parseCombo(comboStr)
 		if !ok {

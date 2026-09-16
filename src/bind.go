@@ -20,7 +20,7 @@ type bindCandidate struct {
 
 // Var seam so handler tests can run the real picker flow without a live
 // actuator behind plugin.Call.
-var fetchBindableCommands = func() ([]bindCandidate, error) {
+func (h *Host) fetchBindableCommandsDefault() ([]bindCandidate, error) {
 	var resp struct {
 		Commands []struct {
 			ID          string          `json:"id"`
@@ -29,7 +29,7 @@ var fetchBindableCommands = func() ([]bindCandidate, error) {
 			Binding     json.RawMessage `json:"binding"`
 		} `json:"commands"`
 	}
-	if err := plugin.Call("commands.enumerate", struct{}{}, &resp); err != nil {
+	if err := h.plugin.Call("commands.enumerate", struct{}{}, &resp); err != nil {
 		return nil, err
 	}
 	out := make([]bindCandidate, 0, len(resp.Commands))
@@ -62,63 +62,63 @@ type BindKeydownRequest struct {
 	DOMKeyEvent
 }
 
-func handleOpenBindPicker(_ *struct{}) (any, error) {
-	cands, err := fetchBindableCommands()
-	mu.Lock()
-	defer mu.Unlock()
+func (h *Host) handleOpenBindPicker(_ *struct{}) (any, error) {
+	cands, err := h.fetchBindableCommands()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if err != nil {
-		state.BindError = "Could not list commands: " + err.Error()
+		h.state.BindError = "Could not list commands: " + err.Error()
 		return OkResponse{OK: false}, nil
 	}
-	state.BindPicker = cands
-	state.PendingBind = nil
+	h.state.BindPicker = cands
+	h.state.PendingBind = nil
 	return OkResponse{OK: true}, nil
 }
 
-func handleCloseBindPicker(_ *struct{}) (any, error) {
-	mu.Lock()
-	pending := state.PendingBind != nil
-	state.BindPicker = nil
-	state.PendingBind = nil
-	mu.Unlock()
+func (h *Host) handleCloseBindPicker(_ *struct{}) (any, error) {
+	h.mu.Lock()
+	pending := h.state.PendingBind != nil
+	h.state.BindPicker = nil
+	h.state.PendingBind = nil
+	h.mu.Unlock()
 	if pending {
-		resumeKeybinds()
+		h.resumeKeybinds()
 	}
 	return OkResponse{OK: true}, nil
 }
 
-func handleChooseBind(req *ChooseBindRequest) (any, error) {
-	mu.Lock()
-	for i := range state.BindPicker {
-		if state.BindPicker[i].ID == req.ID {
-			c := state.BindPicker[i]
-			state.PendingBind = &c
+func (h *Host) handleChooseBind(req *ChooseBindRequest) (any, error) {
+	h.mu.Lock()
+	for i := range h.state.BindPicker {
+		if h.state.BindPicker[i].ID == req.ID {
+			c := h.state.BindPicker[i]
+			h.state.PendingBind = &c
 			break
 		}
 	}
-	found := state.PendingBind != nil
-	mu.Unlock()
+	found := h.state.PendingBind != nil
+	h.mu.Unlock()
 	if found {
-		pauseKeybinds()
+		h.pauseKeybinds()
 	}
 	return OkResponse{OK: found}, nil
 }
 
-func handleCancelBind(_ *struct{}) (any, error) {
-	mu.Lock()
-	state.PendingBind = nil
-	mu.Unlock()
-	resumeKeybinds()
+func (h *Host) handleCancelBind(_ *struct{}) (any, error) {
+	h.mu.Lock()
+	h.state.PendingBind = nil
+	h.mu.Unlock()
+	h.resumeKeybinds()
 	return OkResponse{OK: true}, nil
 }
 
-func handleBindKeydown(req *BindKeydownRequest) (any, error) {
+func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
 	// `input.parse_key_event` is the platform's, and this plugin's local copy
 	// is gone. The copy emitted punctuation glyphs for `=`, `[` and `'` while
 	// `_platform.key_names` names those keys `equals`, `leftbracket` and
 	// `apostrophe` — so a binding recorded on one of them named a key nothing
 	// could resolve. Key naming is platform state; this parsing follows it.
-	parsed, err := parseKeyEvent(req.DOMKeyEvent)
+	parsed, err := h.parseKeyEvent(req.DOMKeyEvent)
 	if err != nil {
 		branchkit.Logf("keyboard", "bind keydown: parse failed: %v", err)
 		return OkResponse{OK: false}, nil
@@ -126,35 +126,35 @@ func handleBindKeydown(req *BindKeydownRequest) (any, error) {
 
 	// Escape → cancel the capture, keep the picker open.
 	if parsed.IsEscape {
-		return handleCancelBind(nil)
+		return h.handleCancelBind(nil)
 	}
 	if parsed.IsBareModifier {
 		return OkResponse{OK: true}, nil
 	}
 	if !parsed.HasModifiers {
-		mu.Lock()
-		state.BindError = "A binding needs at least one modifier key."
-		mu.Unlock()
+		h.mu.Lock()
+		h.state.BindError = "A binding needs at least one modifier key."
+		h.mu.Unlock()
 		return OkResponse{OK: false}, nil
 	}
 
-	mu.Lock()
-	pending := state.PendingBind
+	h.mu.Lock()
+	pending := h.state.PendingBind
 	if pending == nil {
-		mu.Unlock()
+		h.mu.Unlock()
 		return OkResponse{OK: false}, nil
 	}
 	// The binding is a user override: it wins over any plugin bind on the
 	// same combo, exactly as a remap does, and Reset removes it.
-	overrides := loadUserKeybindOverrides()
+	overrides := h.loadUserKeybindOverrides()
 	overrides[parsed.Combo] = pending.B
-	saveUserKeybindOverrides(overrides)
-	state.PendingBind = nil
-	state.BindPicker = nil
-	snapshot := state.rebuild()
-	mu.Unlock()
+	h.saveUserKeybindOverrides(overrides)
+	h.state.PendingBind = nil
+	h.state.BindPicker = nil
+	snapshot := h.state.rebuild(h)
+	h.mu.Unlock()
 	// Outside the lock: registration is an RPC (same rule as handleRemap).
-	registerKeybinds(snapshot)
-	resumeKeybinds()
+	h.registerKeybinds(snapshot)
+	h.resumeKeybinds()
 	return snapshot, nil
 }

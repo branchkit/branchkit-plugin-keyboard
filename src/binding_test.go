@@ -48,11 +48,12 @@ func TestBindingJSONRoundTrip(t *testing.T) {
 // Params flow from the per-plugin map through buildRegistry into the
 // snapshot the actuator caches.
 func TestBuildRegistryCarriesParams(t *testing.T) {
-	origLoad := loadUserKeybindOverrides
-	loadUserKeybindOverrides = func() map[string]Binding { return map[string]Binding{} }
-	defer func() { loadUserKeybindOverrides = origLoad }()
+	h := newTestHost()
+	origLoad := h.loadUserKeybindOverrides
+	h.loadUserKeybindOverrides = func() map[string]Binding { return map[string]Binding{} }
+	defer func() { h.loadUserKeybindOverrides = origLoad }()
 
-	reg := buildRegistry(map[string]map[string]Binding{
+	reg := h.buildRegistry(map[string]map[string]Binding{
 		"scripts": {"opt+n": {Action: "scripts.run", Params: json.RawMessage(`{"script":"notes.lua"}`)}},
 	})
 	snap := reg.toSnapshot()
@@ -89,18 +90,19 @@ func TestHumanizeActionDottedTypes(t *testing.T) {
 // Stubbing is the honest trade — what these tests cover is the bind FLOW
 // (picker, choose, keydown, registration), and the parse itself is pinned in
 // the actuator against the key registry the local copy disagreed with.
-func stubParseKeyEvent(t *testing.T, out ParsedKeyEvent) {
+func stubParseKeyEvent(h *Host, t *testing.T, out ParsedKeyEvent) {
 	t.Helper()
-	orig := parseKeyEvent
-	parseKeyEvent = func(DOMKeyEvent) (ParsedKeyEvent, error) { return out, nil }
-	t.Cleanup(func() { parseKeyEvent = orig })
+	orig := h.parseKeyEvent
+	h.parseKeyEvent = func(DOMKeyEvent) (ParsedKeyEvent, error) { return out, nil }
+	t.Cleanup(func() { h.parseKeyEvent = orig })
 }
 
 func TestBindACommandFlow(t *testing.T) {
-	got := captureRegistrations(t)
+	h := newTestHost()
+	got := captureRegistrations(h, t)
 
-	origFetch := fetchBindableCommands
-	fetchBindableCommands = func() ([]bindCandidate, error) {
+	origFetch := h.fetchBindableCommands
+	h.fetchBindableCommands = func() ([]bindCandidate, error) {
 		return []bindCandidate{{
 			ID:      "scripts:bind probe check",
 			Pattern: "bind probe check",
@@ -108,20 +110,20 @@ func TestBindACommandFlow(t *testing.T) {
 			B:       Binding{Action: "scripts.run", Params: json.RawMessage(`{"script":"bindprobe","handler":"h1"}`)},
 		}}, nil
 	}
-	t.Cleanup(func() { fetchBindableCommands = origFetch })
+	t.Cleanup(func() { h.fetchBindableCommands = origFetch })
 
-	mu.Lock()
-	state = newPluginState()
-	mu.Unlock()
+	h.mu.Lock()
+	h.state = newPluginState()
+	h.mu.Unlock()
 
-	if _, err := handleOpenBindPicker(nil); err != nil {
+	if _, err := h.handleOpenBindPicker(nil); err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if _, err := handleChooseBind(&ChooseBindRequest{ID: "scripts:bind probe check"}); err != nil {
+	if _, err := h.handleChooseBind(&ChooseBindRequest{ID: "scripts:bind probe check"}); err != nil {
 		t.Fatalf("choose: %v", err)
 	}
-	stubParseKeyEvent(t, ParsedKeyEvent{Combo: "ctrl+opt+z", KeyName: "z", HasModifiers: true})
-	if _, err := handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{
+	stubParseKeyEvent(h, t, ParsedKeyEvent{Combo: "ctrl+opt+z", KeyName: "z", HasModifiers: true})
+	if _, err := h.handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{
 		Code: "KeyZ", Key: "z", AltKey: true, CtrlKey: true,
 	}}); err != nil {
 		t.Fatalf("keydown: %v", err)
@@ -130,47 +132,48 @@ func TestBindACommandFlow(t *testing.T) {
 	if len(*got) != 1 {
 		t.Fatalf("bind must register exactly once, got %d", len(*got))
 	}
-	b := findActionForCombo(&state.Registry, "ctrl+opt+z")
+	b := findActionForCombo(&h.state.Registry, "ctrl+opt+z")
 	if b.Action != "scripts.run" {
 		t.Fatalf("combo must resolve to the bound action, got %+v", b)
 	}
 	if string(b.Params) != `{"script":"bindprobe","handler":"h1"}` {
 		t.Fatalf("params must ride the binding, got %s", b.Params)
 	}
-	mu.Lock()
-	if state.BindPicker != nil || state.PendingBind != nil {
-		mu.Unlock()
+	h.mu.Lock()
+	if h.state.BindPicker != nil || h.state.PendingBind != nil {
+		h.mu.Unlock()
 		t.Fatal("picker must close after a successful bind")
 	}
-	mu.Unlock()
+	h.mu.Unlock()
 }
 
 // A combo without modifiers is refused with a one-shot error and no write.
 func TestBindKeydownRequiresModifiers(t *testing.T) {
-	got := captureRegistrations(t)
-	origFetch := fetchBindableCommands
-	fetchBindableCommands = func() ([]bindCandidate, error) {
+	h := newTestHost()
+	got := captureRegistrations(h, t)
+	origFetch := h.fetchBindableCommands
+	h.fetchBindableCommands = func() ([]bindCandidate, error) {
 		return []bindCandidate{{ID: "x", Pattern: "x", Owner: "p", B: Binding{Action: "p.x"}}}, nil
 	}
-	t.Cleanup(func() { fetchBindableCommands = origFetch })
+	t.Cleanup(func() { h.fetchBindableCommands = origFetch })
 
-	mu.Lock()
-	state = newPluginState()
-	mu.Unlock()
-	handleOpenBindPicker(nil)
-	handleChooseBind(&ChooseBindRequest{ID: "x"})
-	stubParseKeyEvent(t, ParsedKeyEvent{Combo: "z", KeyName: "z"})
-	handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{Code: "KeyZ", Key: "z"}})
+	h.mu.Lock()
+	h.state = newPluginState()
+	h.mu.Unlock()
+	h.handleOpenBindPicker(nil)
+	h.handleChooseBind(&ChooseBindRequest{ID: "x"})
+	stubParseKeyEvent(h, t, ParsedKeyEvent{Combo: "z", KeyName: "z"})
+	h.handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{Code: "KeyZ", Key: "z"}})
 
 	if len(*got) != 0 {
 		t.Fatal("a refused bind must not register")
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	if state.BindError == "" {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.state.BindError == "" {
 		t.Fatal("refusal must set the one-shot error")
 	}
-	if state.PendingBind == nil {
+	if h.state.PendingBind == nil {
 		t.Fatal("capture stays open so the user can try again")
 	}
 }

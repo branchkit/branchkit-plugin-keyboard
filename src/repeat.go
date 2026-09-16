@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/branchkit/plugin-sdk-go"
@@ -30,24 +29,17 @@ type holdState struct {
 	mods   []string
 }
 
-var (
-	activeHold    *holdState
-	holdSeq       atomic.Uint64
-	repeatCfg     repeatConfig
-	heldModifiers []string // modifier names held via hold mode (injected into key actions)
-)
-
-func isModifierKey(t keyTarget) bool { return modifierNameForKey(t) != "" }
+func (h *Host) isModifierKey(t keyTarget) bool { return h.modifierNameForKey(t) != "" }
 
 // modifierNameForKey returns the canonical modifier name for a target, or ""
 // if it is not a modifier. Classification is by NAME: a raw code cannot say,
 // because the registry is per-OS (macOS cmd=55 is `v` on Linux, Numpad* on
 // Windows). A code-only target is reverse-looked-up in the registry first.
-func modifierNameForKey(t keyTarget) string {
+func (h *Host) modifierNameForKey(t keyTarget) string {
 	if t.name != "" {
 		return canonicalModifier(t.name)
 	}
-	for _, n := range namesForCode(t.code) {
+	for _, n := range h.namesForCode(t.code) {
 		if m := canonicalModifier(n); m != "" {
 			return m
 		}
@@ -73,11 +65,11 @@ func canonicalModifier(name string) string {
 
 // namesForCode reverse-looks-up the registry. Codes are not unique (aliases
 // share one), so this returns every name that maps to it.
-func namesForCode(code int) []string {
-	mu.Lock()
-	defer mu.Unlock()
+func (h *Host) namesForCode(code int) []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	var out []string
-	for n, c := range state.KeyNamesMerged {
+	for n, c := range h.state.KeyNamesMerged {
 		if int(c) == code {
 			out = append(out, n)
 		}
@@ -87,14 +79,14 @@ func namesForCode(code int) []string {
 
 // activeModifiers returns any modifiers currently held via hold mode.
 // Called by action handlers to inject held modifiers into key actions.
-func activeModifiers() []string {
-	mu.Lock()
-	defer mu.Unlock()
-	if len(heldModifiers) == 0 {
+func (h *Host) activeModifiers() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.heldModifiers) == 0 {
 		return nil
 	}
-	result := make([]string, len(heldModifiers))
-	copy(result, heldModifiers)
+	result := make([]string, len(h.heldModifiers))
+	copy(result, h.heldModifiers)
 	return result
 }
 
@@ -120,107 +112,107 @@ func loadRepeatConfig(p *branchkit.Plugin) repeatConfig {
 	return cfg
 }
 
-func resolveKeyCode(name string) (int, bool) {
-	mu.Lock()
-	defer mu.Unlock()
-	code, ok := state.KeyNamesMerged[strings.ToLower(name)]
+func (h *Host) resolveKeyCode(name string) (int, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	code, ok := h.state.KeyNamesMerged[strings.ToLower(name)]
 	if ok {
 		return int(code), true
 	}
 	return 0, false
 }
 
-func pressRawKey(code int, direction string) {
-	logErr("repeat.raw_key", plugin.Call("input.raw_key", map[string]any{
+func (h *Host) pressRawKey(code int, direction string) {
+	logErr("repeat.raw_key", h.plugin.Call("input.raw_key", map[string]any{
 		"code":      code,
 		"direction": direction,
 	}, nil))
 }
 
-func startHold(t keyTarget, mods []string, repeat bool) {
+func (h *Host) startHold(t keyTarget, mods []string, repeat bool) {
 	// Modifier keys are tracked virtually — they get injected into
 	// subsequent key actions rather than sent as raw events (which
 	// would be undone by the actuator's lift_modifiers).
-	if isModifierKey(t) {
-		modName := modifierNameForKey(t)
-		mu.Lock()
-		heldModifiers = append(heldModifiers, modName)
-		mu.Unlock()
+	if h.isModifierKey(t) {
+		modName := h.modifierNameForKey(t)
+		h.mu.Lock()
+		h.heldModifiers = append(h.heldModifiers, modName)
+		h.mu.Unlock()
 		branchkit.Logf("keyboard", "hold modifier: %s", modName)
 		return
 	}
 
-	mu.Lock()
-	prev := activeHold
-	id := holdSeq.Add(1)
+	h.mu.Lock()
+	prev := h.activeHold
+	id := h.holdSeq.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	activeHold = &holdState{id: id, cancel: cancel, key: t, mods: mods}
-	mu.Unlock()
+	h.activeHold = &holdState{id: id, cancel: cancel, key: t, mods: mods}
+	h.mu.Unlock()
 
 	if prev != nil {
 		prev.cancel()
-		releaseKeys(prev.key, prev.mods)
+		h.releaseKeys(prev.key, prev.mods)
 	}
 
-	pressModifiers(mods, "press")
-	pressRawKey(t.code, "press")
+	h.pressModifiers(mods, "press")
+	h.pressRawKey(t.code, "press")
 
 	if repeat {
-		go runRepeatLoop(ctx, id, t)
+		go h.runRepeatLoop(ctx, id, t)
 	}
 }
 
-func stopHold(t keyTarget, mods []string) {
-	if isModifierKey(t) {
-		modName := modifierNameForKey(t)
-		mu.Lock()
-		for i, m := range heldModifiers {
+func (h *Host) stopHold(t keyTarget, mods []string) {
+	if h.isModifierKey(t) {
+		modName := h.modifierNameForKey(t)
+		h.mu.Lock()
+		for i, m := range h.heldModifiers {
 			if m == modName {
-				heldModifiers = append(heldModifiers[:i], heldModifiers[i+1:]...)
+				h.heldModifiers = append(h.heldModifiers[:i], h.heldModifiers[i+1:]...)
 				break
 			}
 		}
-		mu.Unlock()
+		h.mu.Unlock()
 		branchkit.Logf("keyboard", "release modifier: %s", modName)
 		return
 	}
 
-	mu.Lock()
-	h := activeHold
-	if h != nil {
-		activeHold = nil
+	h.mu.Lock()
+	hold := h.activeHold
+	if hold != nil {
+		h.activeHold = nil
 	}
-	mu.Unlock()
+	h.mu.Unlock()
 
-	if h != nil {
-		h.cancel()
+	if hold != nil {
+		hold.cancel()
 	}
 
-	pressRawKey(t.code, "release")
-	pressModifiers(mods, "release")
+	h.pressRawKey(t.code, "release")
+	h.pressModifiers(mods, "release")
 }
 
-func releaseKeys(t keyTarget, mods []string) {
-	pressRawKey(t.code, "release")
-	pressModifiers(mods, "release")
+func (h *Host) releaseKeys(t keyTarget, mods []string) {
+	h.pressRawKey(t.code, "release")
+	h.pressModifiers(mods, "release")
 }
 
 // pressModifiers injects modifier keys by resolving their names through the
 // platform registry, so the codes are right on every OS. It used to carry its
 // own macOS keycode table, which injected `v` for cmd on Linux.
-func pressModifiers(mods []string, direction string) {
+func (h *Host) pressModifiers(mods []string, direction string) {
 	for _, m := range mods {
 		if canonicalModifier(m) == "" {
 			continue
 		}
-		if code, ok := resolveKeyCode(m); ok {
-			pressRawKey(code, direction)
+		if code, ok := h.resolveKeyCode(m); ok {
+			h.pressRawKey(code, direction)
 		}
 	}
 }
 
-func runRepeatLoop(ctx context.Context, id uint64, t keyTarget) {
-	timer := time.NewTimer(repeatCfg.InitialDelay)
+func (h *Host) runRepeatLoop(ctx context.Context, id uint64, t keyTarget) {
+	timer := time.NewTimer(h.repeatCfg.InitialDelay)
 	defer timer.Stop()
 
 	select {
@@ -229,7 +221,7 @@ func runRepeatLoop(ctx context.Context, id uint64, t keyTarget) {
 	case <-timer.C:
 	}
 
-	ticker := time.NewTicker(repeatCfg.RepeatInterval)
+	ticker := time.NewTicker(h.repeatCfg.RepeatInterval)
 	defer ticker.Stop()
 
 	deadline := time.After(safetyTimeout)
@@ -238,18 +230,18 @@ func runRepeatLoop(ctx context.Context, id uint64, t keyTarget) {
 		case <-ctx.Done():
 			return
 		case <-deadline:
-			mu.Lock()
-			if activeHold != nil && activeHold.id == id {
-				h := activeHold
-				activeHold = nil
-				mu.Unlock()
-				releaseKeys(h.key, h.mods)
+			h.mu.Lock()
+			if h.activeHold != nil && h.activeHold.id == id {
+				hold := h.activeHold
+				h.activeHold = nil
+				h.mu.Unlock()
+				h.releaseKeys(hold.key, hold.mods)
 			} else {
-				mu.Unlock()
+				h.mu.Unlock()
 			}
 			return
 		case <-ticker.C:
-			pressRawKey(t.code, "click")
+			h.pressRawKey(t.code, "click")
 		}
 	}
 }

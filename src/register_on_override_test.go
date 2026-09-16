@@ -17,45 +17,46 @@ import "testing"
 // These drive the real handlers with the collection IO and registration
 // seams stubbed, and assert the rebuilt snapshot actually goes out.
 
-func captureRegistrations(t *testing.T) *[]RegistrySnapshot {
+func captureRegistrations(h *Host, t *testing.T) *[]RegistrySnapshot {
 	t.Helper()
 	got := &[]RegistrySnapshot{}
-	origRegister := registerKeybinds
-	origLoad, origSave := loadUserKeybindOverrides, saveUserKeybindOverrides
+	origRegister := h.registerKeybinds
+	origLoad, origSave := h.loadUserKeybindOverrides, h.saveUserKeybindOverrides
 	saved := map[string]Binding{}
-	registerKeybinds = func(s RegistrySnapshot) { *got = append(*got, s) }
-	loadUserKeybindOverrides = func() map[string]Binding {
+	h.registerKeybinds = func(s RegistrySnapshot) { *got = append(*got, s) }
+	h.loadUserKeybindOverrides = func() map[string]Binding {
 		out := map[string]Binding{}
 		for k, v := range saved {
 			out[k] = v
 		}
 		return out
 	}
-	saveUserKeybindOverrides = func(o map[string]Binding) {
+	h.saveUserKeybindOverrides = func(o map[string]Binding) {
 		saved = map[string]Binding{}
 		for k, v := range o {
 			saved[k] = v
 		}
 	}
 	t.Cleanup(func() {
-		registerKeybinds = origRegister
-		loadUserKeybindOverrides, saveUserKeybindOverrides = origLoad, origSave
+		h.registerKeybinds = origRegister
+		h.loadUserKeybindOverrides, h.saveUserKeybindOverrides = origLoad, origSave
 	})
 	return got
 }
 
 func TestRemapRegistersTheNewBindings(t *testing.T) {
+	h := newTestHost()
 	// Seams first — buildRegistry itself reads the overrides.
-	got := captureRegistrations(t)
-	mu.Lock()
-	state = newPluginState()
-	state.KeybindsByPlugin = map[string]map[string]Binding{
+	got := captureRegistrations(h, t)
+	h.mu.Lock()
+	h.state = newPluginState()
+	h.state.KeybindsByPlugin = map[string]map[string]Binding{
 		"voice": {"alt+h": {Action: "voice.help_toggle"}},
 	}
-	state.rebuild()
-	mu.Unlock()
+	h.state.rebuild(h)
+	h.mu.Unlock()
 
-	if _, err := handleRemap(&RemapRequest{
+	if _, err := h.handleRemap(&RemapRequest{
 		OldCombo: "alt+h",
 		NewCombo: "alt+z",
 		IsHold:   false,
@@ -67,30 +68,31 @@ func TestRemapRegistersTheNewBindings(t *testing.T) {
 		t.Fatalf("remap must register exactly once, got %d — an unregistered "+
 			"remap leaves the shell firing the OLD combos", len(*got))
 	}
-	if a := findActionForCombo(&state.Registry, "alt+z"); a.Action != "voice.help_toggle" {
+	if a := findActionForCombo(&h.state.Registry, "alt+z"); a.Action != "voice.help_toggle" {
 		t.Fatalf("registered snapshot must carry the remapped combo, alt+z -> %q", a.Action)
 	}
 }
 
 func TestResetRegistersTheRestoredBindings(t *testing.T) {
+	h := newTestHost()
 	// Seams first — buildRegistry itself reads the overrides.
-	got := captureRegistrations(t)
-	mu.Lock()
-	state = newPluginState()
-	state.KeybindsByPlugin = map[string]map[string]Binding{
+	got := captureRegistrations(h, t)
+	h.mu.Lock()
+	h.state = newPluginState()
+	h.state.KeybindsByPlugin = map[string]map[string]Binding{
 		"voice": {"alt+h": {Action: "voice.help_toggle"}},
 	}
-	state.rebuild()
-	mu.Unlock()
+	h.state.rebuild(h)
+	h.mu.Unlock()
 
-	if _, err := handleReset(&ResetRequest{ComboKey: "alt+z"}); err != nil {
+	if _, err := h.handleReset(&ResetRequest{ComboKey: "alt+z"}); err != nil {
 		t.Fatalf("handleReset: %v", err)
 	}
 	if len(*got) != 1 {
 		t.Fatal("reset changes the effective bindings and must register them")
 	}
 
-	if _, err := handleResetAll(nil); err != nil {
+	if _, err := h.handleResetAll(nil); err != nil {
 		t.Fatalf("handleResetAll: %v", err)
 	}
 	if len(*got) != 2 {

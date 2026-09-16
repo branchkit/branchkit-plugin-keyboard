@@ -29,17 +29,17 @@ type keysTemplateData struct {
 
 // localKeyNames returns key name entries from the plugin's in-memory state.
 // No actuator call needed — the keyboard plugin owns this data.
-func localKeyNames() []keyNameEntry {
-	mu.Lock()
-	if state.KeyNamesMerged == nil {
-		mu.Unlock()
+func (h *Host) localKeyNames() []keyNameEntry {
+	h.mu.Lock()
+	if h.state.KeyNamesMerged == nil {
+		h.mu.Unlock()
 		return nil
 	}
-	entries := make([]keyNameEntry, 0, len(state.KeyNamesMerged))
-	for name, keycode := range state.KeyNamesMerged {
+	entries := make([]keyNameEntry, 0, len(h.state.KeyNamesMerged))
+	for name, keycode := range h.state.KeyNamesMerged {
 		entries = append(entries, keyNameEntry{Name: name, Keycode: keycode, Source: "default"})
 	}
-	mu.Unlock()
+	h.mu.Unlock()
 	return entries
 }
 
@@ -57,16 +57,16 @@ func isPrintable(s string) bool {
 	return true
 }
 
-func renderKeysSettings(search string) (string, error) {
-	keys := localKeyNames()
+func (h *Host) renderKeysSettings(search string) (string, error) {
+	keys := h.localKeyNames()
 
 	// Read layout data from local state (cached at startup)
-	mu.Lock()
-	layoutMappings := state.LayoutMappings
-	layoutName := state.LayoutName
-	keysError := state.KeysError
-	state.KeysError = ""
-	mu.Unlock()
+	h.mu.Lock()
+	layoutMappings := h.state.LayoutMappings
+	layoutName := h.state.LayoutName
+	keysError := h.state.KeysError
+	h.state.KeysError = ""
+	h.mu.Unlock()
 
 	if layoutMappings == nil {
 		layoutMappings = map[string]string{}

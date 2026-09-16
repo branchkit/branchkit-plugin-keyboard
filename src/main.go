@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
@@ -42,11 +41,11 @@ func newPluginState() *PluginState {
 	}
 }
 
-func (ps *PluginState) rebuild() RegistrySnapshot {
-	ps.Registry = buildRegistry(ps.KeybindsByPlugin)
+func (ps *PluginState) rebuild(h *Host) RegistrySnapshot {
+	ps.Registry = h.buildRegistry(ps.KeybindsByPlugin)
 	// The Actions page learns the live bindings from the same rebuild the
 	// registry does — declared once, here, not in each caller.
-	syncTriggers(ps.Registry)
+	h.syncTriggers(ps.Registry)
 	return ps.Registry.toSnapshot()
 }
 
@@ -81,15 +80,6 @@ type OkResponse struct {
 	OK bool `json:"ok"`
 }
 
-// --- Globals ---
-
-var (
-	mu    sync.Mutex
-	state = newPluginState()
-)
-
-var plugin *branchkit.Plugin
-
 // fetchKeybindsByPlugin reads the keybinds collection from the actuator
 // and regroups the per-record shape into a per-plugin map.
 //
@@ -98,7 +88,7 @@ var plugin *branchkit.Plugin
 // namespaced ids (each record `{id, plugin_id, combo, action}`). This
 // helper restores the per-plugin map the rest of the plugin's logic
 // (buildRegistry, applyRemap, etc.) was already coded against.
-func fetchKeybindsByPlugin() (map[string]map[string]Binding, error) {
+func (h *Host) fetchKeybindsByPlugin() (map[string]map[string]Binding, error) {
 	var storeResp struct {
 		Data []struct {
 			PluginID string          `json:"plugin_id"`
@@ -107,7 +97,7 @@ func fetchKeybindsByPlugin() (map[string]map[string]Binding, error) {
 			Params   json.RawMessage `json:"params"`
 		} `json:"data"`
 	}
-	if err := plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+	if err := h.plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
 		return nil, err
 	}
 	out := make(map[string]map[string]Binding)
@@ -125,57 +115,57 @@ func fetchKeybindsByPlugin() (map[string]map[string]Binding, error) {
 
 // --- RPC handlers ---
 
-func handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
-	keybindsByPlugin, err := fetchKeybindsByPlugin()
+func (h *Host) handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
+	keybindsByPlugin, err := h.fetchKeybindsByPlugin()
 	if err != nil {
 		branchkit.Logf("keyboard", "failed to read store: %v", err)
 		keybindsByPlugin = make(map[string]map[string]Binding)
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-	state.KeybindsByPlugin = keybindsByPlugin
-	snapshot := state.rebuild()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.state.KeybindsByPlugin = keybindsByPlugin
+	snapshot := h.state.rebuild(h)
 
 	return snapshot, nil
 }
 
-func renderKeybindsTab(req *branchkit.RenderSettingsRequest) (string, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	return renderSettings(state, strings.ToLower(req.Search))
+func (h *Host) renderKeybindsTab(req *branchkit.RenderSettingsRequest) (string, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return renderSettings(h.state, strings.ToLower(req.Search))
 }
 
-func renderKeysTab(req *branchkit.RenderSettingsRequest) (string, error) {
-	return renderKeysSettings(strings.ToLower(req.Search))
+func (h *Host) renderKeysTab(req *branchkit.RenderSettingsRequest) (string, error) {
+	return h.renderKeysSettings(strings.ToLower(req.Search))
 }
 
-func handleStartRemap(req *StartRemapRequest) (any, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	state.RemappingCombo = req.Combo
+func (h *Host) handleStartRemap(req *StartRemapRequest) (any, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.state.RemappingCombo = req.Combo
 
-	pauseKeybinds()
+	h.pauseKeybinds()
 	return OkResponse{OK: true}, nil
 }
 
-func handleRemap(req *RemapRequest) (any, error) {
-	mu.Lock()
-	result := applyRemap(req.OldCombo, req.NewCombo, req.IsHold)
-	mu.Unlock()
+func (h *Host) handleRemap(req *RemapRequest) (any, error) {
+	h.mu.Lock()
+	result := h.applyRemap(req.OldCombo, req.NewCombo, req.IsHold)
+	h.mu.Unlock()
 	// Outside the lock: registration is an RPC, and holding mu across a
 	// blocking call would stall every other handler on a slow actuator.
-	registerKeybinds(result)
+	h.registerKeybinds(result)
 	return result, nil
 }
 
 // applyRemap performs the core remap logic. Caller must hold mu.Lock().
-func applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapshot {
-	overrides := loadUserKeybindOverrides()
+func (h *Host) applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapshot {
+	overrides := h.loadUserKeybindOverrides()
 
 	if isHold {
-		downAction := findActionForCombo(&state.Registry, oldCombo+" DOWN")
-		upAction := findActionForCombo(&state.Registry, oldCombo+" UP")
+		downAction := findActionForCombo(&h.state.Registry, oldCombo+" DOWN")
+		upAction := findActionForCombo(&h.state.Registry, oldCombo+" UP")
 		if !downAction.IsZero() {
 			overrides[newCombo+" DOWN"] = downAction
 		}
@@ -187,7 +177,7 @@ func applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapshot {
 			overrides[oldCombo+" UP"] = Binding{}
 		}
 	} else {
-		action := findActionForCombo(&state.Registry, oldCombo)
+		action := findActionForCombo(&h.state.Registry, oldCombo)
 		if !action.IsZero() {
 			overrides[newCombo] = action
 		}
@@ -196,18 +186,18 @@ func applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapshot {
 		}
 	}
 
-	saveUserKeybindOverrides(overrides)
-	state.RemappingCombo = ""
-	snapshot := state.rebuild()
+	h.saveUserKeybindOverrides(overrides)
+	h.state.RemappingCombo = ""
+	snapshot := h.state.rebuild(h)
 
-	resumeKeybinds()
+	h.resumeKeybinds()
 	return snapshot
 }
 
-func handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
+func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 	// Same platform operation the bind recorder uses — see bind.go for why the
 	// local copy went away.
-	parsed, err := parseKeyEvent(req.DOMKeyEvent)
+	parsed, err := h.parseKeyEvent(req.DOMKeyEvent)
 	if err != nil {
 		branchkit.Logf("keyboard", "remap keydown: parse failed: %v", err)
 		return OkResponse{OK: false}, nil
@@ -215,10 +205,10 @@ func handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 
 	// Escape → cancel remap
 	if parsed.IsEscape {
-		mu.Lock()
-		defer mu.Unlock()
-		state.RemappingCombo = ""
-		resumeKeybinds()
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.state.RemappingCombo = ""
+		h.resumeKeybinds()
 		return OkResponse{OK: true}, nil
 	}
 
@@ -229,40 +219,40 @@ func handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 
 	// No modifiers → reject
 	if !parsed.HasModifiers {
-		mu.Lock()
-		state.KeysError = "Remap requires at least one modifier key."
-		mu.Unlock()
+		h.mu.Lock()
+		h.state.KeysError = "Remap requires at least one modifier key."
+		h.mu.Unlock()
 		return OkResponse{OK: false}, nil
 	}
 
 	// Valid combo → apply remap
-	mu.Lock()
-	result := applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
-	mu.Unlock()
-	registerKeybinds(result)
+	h.mu.Lock()
+	result := h.applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
+	h.mu.Unlock()
+	h.registerKeybinds(result)
 	return result, nil
 }
 
-func handleCancelRemap(_ *struct{}) (any, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	state.RemappingCombo = ""
+func (h *Host) handleCancelRemap(_ *struct{}) (any, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.state.RemappingCombo = ""
 
-	resumeKeybinds()
+	h.resumeKeybinds()
 	return OkResponse{OK: true}, nil
 }
 
-func handleReset(req *ResetRequest) (any, error) {
-	mu.Lock()
-	overrides := loadUserKeybindOverrides()
+func (h *Host) handleReset(req *ResetRequest) (any, error) {
+	h.mu.Lock()
+	overrides := h.loadUserKeybindOverrides()
 
 	var action Binding
 	if req.IsHold {
-		action = findActionForCombo(&state.Registry, req.ComboKey+" DOWN")
+		action = findActionForCombo(&h.state.Registry, req.ComboKey+" DOWN")
 		delete(overrides, req.ComboKey+" DOWN")
 		delete(overrides, req.ComboKey+" UP")
 	} else {
-		action = findActionForCombo(&state.Registry, req.ComboKey)
+		action = findActionForCombo(&h.state.Registry, req.ComboKey)
 		delete(overrides, req.ComboKey)
 	}
 
@@ -271,7 +261,7 @@ func handleReset(req *ResetRequest) (any, error) {
 			if !v.IsZero() {
 				continue
 			}
-			for _, pluginBinds := range state.KeybindsByPlugin {
+			for _, pluginBinds := range h.state.KeybindsByPlugin {
 				if pluginBind, ok := pluginBinds[k]; ok && pluginBind.Action == action.Action {
 					delete(overrides, k)
 				}
@@ -279,20 +269,20 @@ func handleReset(req *ResetRequest) (any, error) {
 		}
 	}
 
-	saveUserKeybindOverrides(overrides)
-	snapshot := state.rebuild()
-	mu.Unlock()
-	registerKeybinds(snapshot)
+	h.saveUserKeybindOverrides(overrides)
+	snapshot := h.state.rebuild(h)
+	h.mu.Unlock()
+	h.registerKeybinds(snapshot)
 
 	return snapshot, nil
 }
 
-func handleResetAll(_ *struct{}) (any, error) {
-	mu.Lock()
-	saveUserKeybindOverrides(nil)
-	snapshot := state.rebuild()
-	mu.Unlock()
-	registerKeybinds(snapshot)
+func (h *Host) handleResetAll(_ *struct{}) (any, error) {
+	h.mu.Lock()
+	h.saveUserKeybindOverrides(nil)
+	snapshot := h.state.rebuild(h)
+	h.mu.Unlock()
+	h.registerKeybinds(snapshot)
 
 	return snapshot, nil
 }
@@ -309,11 +299,11 @@ func handleResetAll(_ *struct{}) (any, error) {
 // the accepted race of the old boot-time resume is gone), and release in
 // `cleanup_terminated_plugin` if this process dies mid-capture, on every
 // platform. No boot-time reconcile needed anymore for exactly that reason.
-func pauseKeybinds() {
-	if plugin == nil {
+func (h *Host) pauseKeybinds() {
+	if h.plugin == nil {
 		return
 	}
-	out, err := plugin.AssertEffect("suppress_keybinds")
+	out, err := h.plugin.AssertEffect("suppress_keybinds")
 	if err != nil {
 		branchkit.Logf("keyboard", "suppress_keybinds assert failed: %v", err)
 		return
@@ -325,11 +315,11 @@ func pauseKeybinds() {
 	}
 }
 
-func resumeKeybinds() {
-	if plugin == nil {
+func (h *Host) resumeKeybinds() {
+	if h.plugin == nil {
 		return
 	}
-	if _, _, err := plugin.RetractEffect("suppress_keybinds"); err != nil {
+	if _, _, err := h.plugin.RetractEffect("suppress_keybinds"); err != nil {
 		branchkit.Logf("keyboard", "suppress_keybinds retract failed: %v", err)
 	}
 }
@@ -345,27 +335,27 @@ func resumeKeybinds() {
 // remap looked successful in Settings while the shell kept firing the OLD
 // combos until the next plugin restart. A test seam (var) so handler tests
 // can assert the registration actually happens.
-var registerKeybinds = func(snapshot RegistrySnapshot) {
-	if plugin == nil {
+func (h *Host) registerKeybindsDefault(snapshot RegistrySnapshot) {
+	if h.plugin == nil {
 		return
 	}
 	regBody := struct {
 		Snapshot any `json:"snapshot"`
 	}{Snapshot: snapshot}
-	if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
+	if err := h.plugin.Call("keybinds.register", regBody, nil); err != nil {
 		branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		return
 	}
 	branchkit.Logf("keyboard", "re-registered keybinds after override change")
 }
 
-func handleStartCapture(_ *struct{}) (any, error) {
-	pauseKeybinds()
+func (h *Host) handleStartCapture(_ *struct{}) (any, error) {
+	h.pauseKeybinds()
 	return OkResponse{OK: true}, nil
 }
 
-func handleStopCapture(_ *struct{}) (any, error) {
-	resumeKeybinds()
+func (h *Host) handleStopCapture(_ *struct{}) (any, error) {
+	h.resumeKeybinds()
 	return OkResponse{OK: true}, nil
 }
 
@@ -433,11 +423,11 @@ const keyNamesCollection = "_platform.key_names"
 // overrides applied) into local state, which feeds layout characters, the Keys
 // settings tab, and hold-to-repeat's code lookup. Read-only: the platform seeds
 // and resolves from the same records, so there is nothing to push back.
-func refreshKeycodesFromCollection() {
+func (h *Host) refreshKeycodesFromCollection() {
 	var resp struct {
 		Entries map[string]json.RawMessage `json:"entries"`
 	}
-	if err := plugin.Call("collection.get", map[string]string{"name": keyNamesCollection}, &resp); err != nil {
+	if err := h.plugin.Call("collection.get", map[string]string{"name": keyNamesCollection}, &resp); err != nil {
 		branchkit.Logf("keyboard", "failed to read %s: %v", keyNamesCollection, err)
 		return
 	}
@@ -467,9 +457,9 @@ func refreshKeycodesFromCollection() {
 		merged[name] = v
 	}
 
-	mu.Lock()
-	state.KeyNamesMerged = merged
-	mu.Unlock()
+	h.mu.Lock()
+	h.state.KeyNamesMerged = merged
+	h.mu.Unlock()
 
 	branchkit.Logf("keyboard", "read %d key names from %s", len(merged), keyNamesCollection)
 }
@@ -491,7 +481,7 @@ func buildLayoutCharacters(keyNames map[string]uint16, layoutMappings map[string
 
 // loadAndPushLayoutCharacters fetches the keyboard layout from the actuator,
 // joins with keycodes, caches locally, and pushes the layout_characters store.
-func loadAndPushLayoutCharacters(p *branchkit.Plugin) {
+func (h *Host) loadAndPushLayoutCharacters(p *branchkit.Plugin) {
 	type layoutResp struct {
 		LayoutID   string            `json:"layout_id"`
 		LayoutName string            `json:"layout_name"`
@@ -503,16 +493,16 @@ func loadAndPushLayoutCharacters(p *branchkit.Plugin) {
 		return
 	}
 
-	mu.Lock()
-	merged := state.KeyNamesMerged
-	mu.Unlock()
+	h.mu.Lock()
+	merged := h.state.KeyNamesMerged
+	h.mu.Unlock()
 
 	chars := buildLayoutCharacters(merged, layout.Mappings)
 
-	mu.Lock()
-	state.LayoutName = layout.LayoutName
-	state.LayoutMappings = layout.Mappings
-	mu.Unlock()
+	h.mu.Lock()
+	h.state.LayoutName = layout.LayoutName
+	h.state.LayoutMappings = layout.Mappings
+	h.mu.Unlock()
 
 	// `layout_characters` is a singleton — one record holds the whole
 	// physical-name → layout-character map. Consumers (voice plugin's
@@ -600,33 +590,33 @@ func loadAndPushModifiers(p *branchkit.Plugin) {
 // --- Startup ---
 
 func main() {
-	plugin = branchkit.NewPlugin()
+	h := newHost(branchkit.NewPlugin())
 
 	// Load system key repeat settings for hold-to-repeat support
-	repeatCfg = loadRepeatConfig(plugin)
+	h.repeatCfg = loadRepeatConfig(h.plugin)
 
 	// Key names come FROM the platform now — read them before the loaders
 	// below, which enrich against them.
-	refreshKeycodesFromCollection()
+	h.refreshKeycodesFromCollection()
 
 	// Push initial data to actuator stores
-	loadAndPushLayoutCharacters(plugin)
-	loadAndPushKeys(plugin) // depends on layout_characters for enrichment
-	loadAndPushModifiers(plugin)
+	h.loadAndPushLayoutCharacters(h.plugin)
+	loadAndPushKeys(h.plugin) // depends on layout_characters for enrichment
+	loadAndPushModifiers(h.plugin)
 
 	// Initial keybind registration — read store, build snapshot, register with platform
-	if kbp, err := fetchKeybindsByPlugin(); err != nil {
+	if kbp, err := h.fetchKeybindsByPlugin(); err != nil {
 		branchkit.Logf("keyboard", "failed to read keybinds store: %v", err)
 	} else {
-		mu.Lock()
-		state.KeybindsByPlugin = kbp
-		snapshot := state.rebuild()
-		mu.Unlock()
+		h.mu.Lock()
+		h.state.KeybindsByPlugin = kbp
+		snapshot := h.state.rebuild(h)
+		h.mu.Unlock()
 
 		regBody := struct {
 			Snapshot any `json:"snapshot"`
 		}{Snapshot: snapshot}
-		if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
+		if err := h.plugin.Call("keybinds.register", regBody, nil); err != nil {
 			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		} else {
 			branchkit.Logf("keyboard", "Initial keybind registration complete")
@@ -634,7 +624,7 @@ func main() {
 	}
 
 	// Subscribe to events (actuator→plugin notifications)
-	plugin.On("_platform.collection.updated", func(params json.RawMessage) {
+	h.plugin.On("_platform.collection.updated", func(params json.RawMessage) {
 		var payload struct {
 			Collection string `json:"collection"`
 		}
@@ -643,7 +633,7 @@ func main() {
 		}
 		switch payload.Collection {
 		case keyNamesCollection:
-			refreshKeycodesFromCollection()
+			h.refreshKeycodesFromCollection()
 			return
 		case "keybinds":
 			// handled below
@@ -651,65 +641,65 @@ func main() {
 			return
 		}
 		// Re-fetch keybinds from actuator
-		kbp, err := fetchKeybindsByPlugin()
+		kbp, err := h.fetchKeybindsByPlugin()
 		if err != nil {
 			branchkit.Logf("keyboard", "store update: failed to read keybinds: %v", err)
 			return
 		}
-		mu.Lock()
-		state.KeybindsByPlugin = kbp
-		snapshot := state.rebuild()
-		mu.Unlock()
+		h.mu.Lock()
+		h.state.KeybindsByPlugin = kbp
+		snapshot := h.state.rebuild(h)
+		h.mu.Unlock()
 
 		// Register keybinds with the platform (replaces content_type side effect)
 		regBody := struct {
 			Snapshot any `json:"snapshot"`
 		}{Snapshot: snapshot}
-		if err := plugin.Call("keybinds.register", regBody, nil); err != nil {
+		if err := h.plugin.Call("keybinds.register", regBody, nil); err != nil {
 			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		}
 		branchkit.Logf("keyboard", "rebuilt keybinds from store update")
 	})
 
-	plugin.On("_platform.keyboard.layout_changed", func(params json.RawMessage) {
+	h.plugin.On("_platform.keyboard.layout_changed", func(params json.RawMessage) {
 		branchkit.Logf("keyboard", "layout changed — re-pushing layout_characters and keys")
-		loadAndPushLayoutCharacters(plugin)
-		loadAndPushKeys(plugin) // re-enrich with new layout characters
+		h.loadAndPushLayoutCharacters(h.plugin)
+		loadAndPushKeys(h.plugin) // re-enrich with new layout characters
 	})
 
 	// Register handlers (actuator→plugin requests)
-	branchkit.HandleTyped(plugin, "build_registry", handleBuildRegistry)
-	plugin.SettingsCSS(keyboardCSS)
-	plugin.SettingsTab("keybinds", renderKeybindsTab)
-	plugin.SettingsTab("keys", renderKeysTab)
+	branchkit.HandleTyped(h.plugin, "build_registry", h.handleBuildRegistry)
+	h.plugin.SettingsCSS(keyboardCSS)
+	h.plugin.SettingsTab("keybinds", h.renderKeybindsTab)
+	h.plugin.SettingsTab("keys", h.renderKeysTab)
 
-	branchkit.HandleTyped(plugin, "start_remap", handleStartRemap)
-	branchkit.HandleTyped(plugin, "remap", handleRemap)
-	branchkit.HandleTyped(plugin, "cancel_remap", handleCancelRemap)
-	branchkit.HandleTyped(plugin, "reset", handleReset)
-	branchkit.HandleTyped(plugin, "reset_all", handleResetAll)
-	branchkit.HandleTyped(plugin, "start_capture", handleStartCapture)
-	branchkit.HandleTyped(plugin, "stop_capture", handleStopCapture)
-	branchkit.HandleTyped(plugin, "remap_keydown", handleRemapKeydown)
-	branchkit.HandleTyped(plugin, "open_bind_picker", handleOpenBindPicker)
-	branchkit.HandleTyped(plugin, "close_bind_picker", handleCloseBindPicker)
-	branchkit.HandleTyped(plugin, "choose_bind", handleChooseBind)
-	branchkit.HandleTyped(plugin, "cancel_bind", handleCancelBind)
-	branchkit.HandleTyped(plugin, "bind_keydown", handleBindKeydown)
+	branchkit.HandleTyped(h.plugin, "start_remap", h.handleStartRemap)
+	branchkit.HandleTyped(h.plugin, "remap", h.handleRemap)
+	branchkit.HandleTyped(h.plugin, "cancel_remap", h.handleCancelRemap)
+	branchkit.HandleTyped(h.plugin, "reset", h.handleReset)
+	branchkit.HandleTyped(h.plugin, "reset_all", h.handleResetAll)
+	branchkit.HandleTyped(h.plugin, "start_capture", h.handleStartCapture)
+	branchkit.HandleTyped(h.plugin, "stop_capture", h.handleStopCapture)
+	branchkit.HandleTyped(h.plugin, "remap_keydown", h.handleRemapKeydown)
+	branchkit.HandleTyped(h.plugin, "open_bind_picker", h.handleOpenBindPicker)
+	branchkit.HandleTyped(h.plugin, "close_bind_picker", h.handleCloseBindPicker)
+	branchkit.HandleTyped(h.plugin, "choose_bind", h.handleChooseBind)
+	branchkit.HandleTyped(h.plugin, "cancel_bind", h.handleCancelBind)
+	branchkit.HandleTyped(h.plugin, "bind_keydown", h.handleBindKeydown)
 	// Per-action handlers (replaces the old single on_action switch).
-	HandleType(plugin, handleInputType)
-	HandleKeyByName(plugin, handleInputKeyByName)
-	HandleKey(plugin, handleInputKey)
-	HandleShortcutByName(plugin, handleInputShortcutByName)
-	HandleShortcut(plugin, handleInputShortcut)
-	HandleRawKey(plugin, handleInputRawKey)
-	HandleClick(plugin, handleInputClick)
-	HandleScroll(plugin, handleInputScroll)
-	HandleMove(plugin, handleInputMove)
-	HandleMouseDown(plugin, handleInputMouseDown)
-	HandleMouseUp(plugin, handleInputMouseUp)
-	HandleClipboard(plugin, handleInputClipboard)
+	HandleType(h.plugin, h.handleInputType)
+	HandleKeyByName(h.plugin, h.handleInputKeyByName)
+	HandleKey(h.plugin, h.handleInputKey)
+	HandleShortcutByName(h.plugin, h.handleInputShortcutByName)
+	HandleShortcut(h.plugin, h.handleInputShortcut)
+	HandleRawKey(h.plugin, h.handleInputRawKey)
+	HandleClick(h.plugin, h.handleInputClick)
+	HandleScroll(h.plugin, h.handleInputScroll)
+	HandleMove(h.plugin, h.handleInputMove)
+	HandleMouseDown(h.plugin, h.handleInputMouseDown)
+	HandleMouseUp(h.plugin, h.handleInputMouseUp)
+	HandleClipboard(h.plugin, h.handleInputClipboard)
 
 	// Run the message loop (blocks until stdin closes or SIGTERM)
-	plugin.Run()
+	h.plugin.Run()
 }

@@ -65,14 +65,14 @@ func triggerEntries(reg InternalRegistry) []branchkit.CollectionPutEntry {
 // runs inside RPC handlers, and a nested round trip there would block the
 // reply. Scoped to this plugin's own records — other dispatchers' triggers
 // are untouched.
-func syncTriggers(reg InternalRegistry) {
-	if plugin == nil {
+func (h *Host) syncTriggers(reg InternalRegistry) {
+	if h.plugin == nil {
 		return
 	}
 	entries := triggerEntries(reg)
-	corr := plugin.CurrentCorrelation()
+	corr := h.plugin.CurrentCorrelation()
 	go branchkit.RunWithCorrelation(corr, func() {
-		if _, err := plugin.Replace(triggersCollection, entries, branchkit.ScopeCollection()); err != nil {
+		if _, err := h.plugin.Replace(triggersCollection, entries, branchkit.ScopeCollection()); err != nil {
 			branchkit.Logf("keyboard", "trigger declarations: %v", err)
 		}
 	})

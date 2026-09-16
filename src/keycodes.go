@@ -36,10 +36,10 @@ type ParsedKeyEvent = branchkit.InputParseKeyEventResponse
 // running host. Reaching a platform operation needs a live RPC, and that is a
 // real cost of centralising. Tests swap this the same way they already swap
 // `fetchBindableCommands`.
-var parseKeyEvent = func(ev DOMKeyEvent) (ParsedKeyEvent, error) {
+func (h *Host) parseKeyEventDefault(ev DOMKeyEvent) (ParsedKeyEvent, error) {
 	var parsed ParsedKeyEvent
-	if plugin == nil {
+	if h.plugin == nil {
 		return parsed, fmt.Errorf("no plugin connection")
 	}
-	return parsed, plugin.Call("input.parse_key_event", ev, &parsed)
+	return parsed, h.plugin.Call("input.parse_key_event", ev, &parsed)
 }

@@ -31,23 +31,24 @@ func TestCanonicalModifier(t *testing.T) {
 // holding either was silently swallowed as a held modifier instead of being
 // pressed. Classify by name.
 func TestModifierNameForKey_NamedBeatsCode(t *testing.T) {
-	mu.Lock()
-	state.KeyNamesMerged = map[string]uint16{
+	h := newTestHost()
+	h.mu.Lock()
+	h.state.KeyNamesMerged = map[string]uint16{
 		"v": 55, "comma": 59, "b": 56, // the Linux X11 collisions
 		"cmd": 133, "shift": 50, "ctrl": 37,
 	}
-	mu.Unlock()
+	h.mu.Unlock()
 
 	for _, name := range []string{"v", "comma", "b"} {
-		if got := modifierNameForKey(keyTarget{name: name, code: int(state.KeyNamesMerged[name])}); got != "" {
+		if got := h.modifierNameForKey(keyTarget{name: name, code: int(h.state.KeyNamesMerged[name])}); got != "" {
 			t.Errorf("%q resolved to code %d must NOT be a modifier, got %q",
-				name, state.KeyNamesMerged[name], got)
+				name, h.state.KeyNamesMerged[name], got)
 		}
 	}
-	if got := modifierNameForKey(keyTarget{name: "cmd", code: 133}); got != "cmd" {
+	if got := h.modifierNameForKey(keyTarget{name: "cmd", code: 133}); got != "cmd" {
 		t.Errorf("named cmd = %q, want cmd", got)
 	}
-	if got := modifierNameForKey(keyTarget{name: "shift", code: 50}); got != "shift" {
+	if got := h.modifierNameForKey(keyTarget{name: "shift", code: 50}); got != "shift" {
 		t.Errorf("named shift = %q, want shift", got)
 	}
 }
@@ -55,17 +56,18 @@ func TestModifierNameForKey_NamedBeatsCode(t *testing.T) {
 // A code-only target (the raw-keycode actions) has no name, so it is reverse
 // looked up in the registry rather than compared to macOS constants.
 func TestModifierNameForKey_CodeReverseLookup(t *testing.T) {
-	mu.Lock()
-	state.KeyNamesMerged = map[string]uint16{"v": 55, "cmd": 133, "ctrl": 37}
-	mu.Unlock()
+	h := newTestHost()
+	h.mu.Lock()
+	h.state.KeyNamesMerged = map[string]uint16{"v": 55, "cmd": 133, "ctrl": 37}
+	h.mu.Unlock()
 
-	if got := modifierNameForKey(keyTarget{code: 133}); got != "cmd" {
+	if got := h.modifierNameForKey(keyTarget{code: 133}); got != "cmd" {
 		t.Errorf("code 133 = %q, want cmd", got)
 	}
-	if got := modifierNameForKey(keyTarget{code: 55}); got != "" {
+	if got := h.modifierNameForKey(keyTarget{code: 55}); got != "" {
 		t.Errorf("code 55 (v on this registry) = %q, want empty", got)
 	}
-	if got := modifierNameForKey(keyTarget{code: 9999}); got != "" {
+	if got := h.modifierNameForKey(keyTarget{code: 9999}); got != "" {
 		t.Errorf("unknown code = %q, want empty", got)
 	}
 }

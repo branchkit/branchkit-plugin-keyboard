@@ -6,11 +6,11 @@ import (
 	"github.com/branchkit/plugin-sdk-go"
 )
 
-func loadOverridesFromCollection() map[string]Binding {
-	if plugin == nil {
+func (h *Host) loadOverridesFromCollection() map[string]Binding {
+	if h.plugin == nil {
 		return make(map[string]Binding)
 	}
-	rec, err := plugin.Get("plugin.keyboard.overrides", "singleton")
+	rec, err := h.plugin.Get("plugin.keyboard.overrides", "singleton")
 	if err != nil {
 		branchkit.Logf("keyboard", "overrides collection read error: %v", err)
 		return make(map[string]Binding)
@@ -26,15 +26,15 @@ func loadOverridesFromCollection() map[string]Binding {
 	return make(map[string]Binding)
 }
 
-func saveOverridesToCollection(overrides map[string]Binding) {
-	if plugin == nil {
+func (h *Host) saveOverridesToCollection(overrides map[string]Binding) {
+	if h.plugin == nil {
 		return
 	}
 	if len(overrides) == 0 {
-		plugin.Delete("plugin.keyboard.overrides", "singleton")
+		h.plugin.Delete("plugin.keyboard.overrides", "singleton")
 		return
 	}
-	if err := plugin.Put("plugin.keyboard.overrides", "singleton", overrides); err != nil {
+	if err := h.plugin.Put("plugin.keyboard.overrides", "singleton", overrides); err != nil {
 		branchkit.Logf("keyboard", "failed to save overrides: %v", err)
 	}
 }

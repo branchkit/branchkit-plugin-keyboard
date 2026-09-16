@@ -5,22 +5,24 @@ import (
 )
 
 func TestLocalKeyNames_NilState(t *testing.T) {
-	mu.Lock()
-	state.KeyNamesMerged = nil
-	mu.Unlock()
+	h := newTestHost()
+	h.mu.Lock()
+	h.state.KeyNamesMerged = nil
+	h.mu.Unlock()
 
-	entries := localKeyNames()
+	entries := h.localKeyNames()
 	if entries != nil {
 		t.Errorf("expected nil, got %d entries", len(entries))
 	}
 }
 
 func TestLocalKeyNames_SourceAttribution(t *testing.T) {
-	mu.Lock()
-	state.KeyNamesMerged = map[string]uint16{"a": 0, "z": 6, "return": 36}
-	mu.Unlock()
+	h := newTestHost()
+	h.mu.Lock()
+	h.state.KeyNamesMerged = map[string]uint16{"a": 0, "z": 6, "return": 36}
+	h.mu.Unlock()
 
-	entries := localKeyNames()
+	entries := h.localKeyNames()
 	if len(entries) != 3 {
 		t.Fatalf("expected 3 entries, got %d", len(entries))
 	}
