@@ -44,6 +44,9 @@ func newPluginState() *PluginState {
 
 func (ps *PluginState) rebuild() RegistrySnapshot {
 	ps.Registry = buildRegistry(ps.KeybindsByPlugin)
+	// The Actions page learns the live bindings from the same rebuild the
+	// registry does — declared once, here, not in each caller.
+	syncTriggers(ps.Registry)
 	return ps.Registry.toSnapshot()
 }
 
