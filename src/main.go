@@ -140,13 +140,13 @@ func (h *Host) renderKeysTab(req *branchkit.RenderSettingsRequest) (string, erro
 	return h.renderKeysSettings(strings.ToLower(req.Search))
 }
 
-func (h *Host) handleStartRemap(req *StartRemapRequest) (any, error) {
+func (h *Host) handleStartRemap(req *StartRemapRequest) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.state.RemappingCombo = req.Combo
 
 	h.pauseKeybinds()
-	return nil, nil
+	return nil
 }
 
 func (h *Host) handleRemap(req *RemapRequest) (any, error) {
@@ -194,13 +194,13 @@ func (h *Host) applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapsh
 	return snapshot
 }
 
-func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
+func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) error {
 	// Same platform operation the bind recorder uses — see bind.go for why the
 	// local copy went away.
 	parsed, err := h.parseKeyEvent(req.DOMKeyEvent)
 	if err != nil {
 		branchkit.Logf("keyboard", "remap keydown: parse failed: %v", err)
-		return nil, nil
+		return nil
 	}
 
 	// Escape → cancel remap
@@ -209,12 +209,12 @@ func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 		defer h.mu.Unlock()
 		h.state.RemappingCombo = ""
 		h.resumeKeybinds()
-		return nil, nil
+		return nil
 	}
 
 	// Bare modifier or unknown key → no-op
 	if parsed.IsBareModifier {
-		return nil, nil
+		return nil
 	}
 
 	// No modifiers → reject
@@ -222,7 +222,7 @@ func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 		h.mu.Lock()
 		h.state.KeysError = "Remap requires at least one modifier key."
 		h.mu.Unlock()
-		return nil, nil
+		return nil
 	}
 
 	// Valid combo → apply remap
@@ -230,19 +230,19 @@ func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) (any, error) {
 	result := h.applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
 	h.mu.Unlock()
 	h.registerKeybinds(result)
-	return nil, nil
+	return nil
 }
 
-func (h *Host) handleCancelRemap(_ *struct{}) (any, error) {
+func (h *Host) handleCancelRemap(_ *struct{}) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.state.RemappingCombo = ""
 
 	h.resumeKeybinds()
-	return nil, nil
+	return nil
 }
 
-func (h *Host) handleReset(req *ResetRequest) (any, error) {
+func (h *Host) handleReset(req *ResetRequest) error {
 	h.mu.Lock()
 	overrides := h.loadUserKeybindOverrides()
 
@@ -274,17 +274,17 @@ func (h *Host) handleReset(req *ResetRequest) (any, error) {
 	h.mu.Unlock()
 	h.registerKeybinds(snapshot)
 
-	return nil, nil
+	return nil
 }
 
-func (h *Host) handleResetAll(_ *struct{}) (any, error) {
+func (h *Host) handleResetAll(_ *struct{}) error {
 	h.mu.Lock()
 	h.saveUserKeybindOverrides(nil)
 	snapshot := h.state.rebuild(h)
 	h.mu.Unlock()
 	h.registerKeybinds(snapshot)
 
-	return nil, nil
+	return nil
 }
 
 // pauseKeybinds / resumeKeybinds hold and release the `suppress_keybinds`
@@ -664,19 +664,19 @@ func main() {
 	h.plugin.SettingsTab("keybinds", h.renderKeybindsTab)
 	h.plugin.SettingsTab("keys", h.renderKeysTab)
 
-	branchkit.HandleTyped(h.plugin, "start_remap", h.handleStartRemap)
+	branchkit.HandleCommand(h.plugin, "start_remap", h.handleStartRemap)
 	branchkit.HandleTyped(h.plugin, "remap", h.handleRemap)
-	branchkit.HandleTyped(h.plugin, "cancel_remap", h.handleCancelRemap)
-	branchkit.HandleTyped(h.plugin, "reset", h.handleReset)
-	branchkit.HandleTyped(h.plugin, "reset_all", h.handleResetAll)
+	branchkit.HandleCommand(h.plugin, "cancel_remap", h.handleCancelRemap)
+	branchkit.HandleCommand(h.plugin, "reset", h.handleReset)
+	branchkit.HandleCommand(h.plugin, "reset_all", h.handleResetAll)
 	branchkit.HandleTyped(h.plugin, "start_capture", h.handleStartCapture)
 	branchkit.HandleTyped(h.plugin, "stop_capture", h.handleStopCapture)
-	branchkit.HandleTyped(h.plugin, "remap_keydown", h.handleRemapKeydown)
-	branchkit.HandleTyped(h.plugin, "open_bind_picker", h.handleOpenBindPicker)
-	branchkit.HandleTyped(h.plugin, "close_bind_picker", h.handleCloseBindPicker)
-	branchkit.HandleTyped(h.plugin, "choose_bind", h.handleChooseBind)
-	branchkit.HandleTyped(h.plugin, "cancel_bind", h.handleCancelBind)
-	branchkit.HandleTyped(h.plugin, "bind_keydown", h.handleBindKeydown)
+	branchkit.HandleCommand(h.plugin, "remap_keydown", h.handleRemapKeydown)
+	branchkit.HandleCommand(h.plugin, "open_bind_picker", h.handleOpenBindPicker)
+	branchkit.HandleCommand(h.plugin, "close_bind_picker", h.handleCloseBindPicker)
+	branchkit.HandleCommand(h.plugin, "choose_bind", h.handleChooseBind)
+	branchkit.HandleCommand(h.plugin, "cancel_bind", h.handleCancelBind)
+	branchkit.HandleCommand(h.plugin, "bind_keydown", h.handleBindKeydown)
 	// Per-action handlers (replaces the old single on_action switch).
 	HandleType(h.plugin, h.handleInputType)
 	HandleKeyByName(h.plugin, h.handleInputKeyByName)

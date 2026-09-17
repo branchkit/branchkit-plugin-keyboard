@@ -85,14 +85,14 @@ func TestResetRegistersTheRestoredBindings(t *testing.T) {
 	h.state.rebuild(h)
 	h.mu.Unlock()
 
-	if _, err := h.handleReset(&ResetRequest{ComboKey: "alt+z"}); err != nil {
+	if err := h.handleReset(&ResetRequest{ComboKey: "alt+z"}); err != nil {
 		t.Fatalf("handleReset: %v", err)
 	}
 	if len(*got) != 1 {
 		t.Fatal("reset changes the effective bindings and must register them")
 	}
 
-	if _, err := h.handleResetAll(nil); err != nil {
+	if err := h.handleResetAll(nil); err != nil {
 		t.Fatalf("handleResetAll: %v", err)
 	}
 	if len(*got) != 2 {

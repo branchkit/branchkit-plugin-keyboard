@@ -116,14 +116,14 @@ func TestBindACommandFlow(t *testing.T) {
 	h.state = newPluginState()
 	h.mu.Unlock()
 
-	if _, err := h.handleOpenBindPicker(nil); err != nil {
+	if err := h.handleOpenBindPicker(nil); err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if _, err := h.handleChooseBind(&ChooseBindRequest{ID: "scripts:bind probe check"}); err != nil {
+	if err := h.handleChooseBind(&ChooseBindRequest{ID: "scripts:bind probe check"}); err != nil {
 		t.Fatalf("choose: %v", err)
 	}
 	stubParseKeyEvent(h, t, ParsedKeyEvent{Combo: "ctrl+opt+z", KeyName: "z", HasModifiers: true})
-	if _, err := h.handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{
+	if err := h.handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{
 		Code: "KeyZ", Key: "z", AltKey: true, CtrlKey: true,
 	}}); err != nil {
 		t.Fatalf("keydown: %v", err)

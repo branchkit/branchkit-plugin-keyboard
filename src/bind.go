@@ -62,20 +62,20 @@ type BindKeydownRequest struct {
 	DOMKeyEvent
 }
 
-func (h *Host) handleOpenBindPicker(_ *struct{}) (any, error) {
+func (h *Host) handleOpenBindPicker(_ *struct{}) error {
 	cands, err := h.fetchBindableCommands()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if err != nil {
 		h.state.BindError = "Could not list commands: " + err.Error()
-		return nil, nil
+		return nil
 	}
 	h.state.BindPicker = cands
 	h.state.PendingBind = nil
-	return nil, nil
+	return nil
 }
 
-func (h *Host) handleCloseBindPicker(_ *struct{}) (any, error) {
+func (h *Host) handleCloseBindPicker(_ *struct{}) error {
 	h.mu.Lock()
 	pending := h.state.PendingBind != nil
 	h.state.BindPicker = nil
@@ -84,10 +84,10 @@ func (h *Host) handleCloseBindPicker(_ *struct{}) (any, error) {
 	if pending {
 		h.resumeKeybinds()
 	}
-	return nil, nil
+	return nil
 }
 
-func (h *Host) handleChooseBind(req *ChooseBindRequest) (any, error) {
+func (h *Host) handleChooseBind(req *ChooseBindRequest) error {
 	h.mu.Lock()
 	for i := range h.state.BindPicker {
 		if h.state.BindPicker[i].ID == req.ID {
@@ -101,18 +101,18 @@ func (h *Host) handleChooseBind(req *ChooseBindRequest) (any, error) {
 	if found {
 		h.pauseKeybinds()
 	}
-	return nil, nil
+	return nil
 }
 
-func (h *Host) handleCancelBind(_ *struct{}) (any, error) {
+func (h *Host) handleCancelBind(_ *struct{}) error {
 	h.mu.Lock()
 	h.state.PendingBind = nil
 	h.mu.Unlock()
 	h.resumeKeybinds()
-	return nil, nil
+	return nil
 }
 
-func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
+func (h *Host) handleBindKeydown(req *BindKeydownRequest) error {
 	// `input.parse_key_event` is the platform's, and this plugin's local copy
 	// is gone. The copy emitted punctuation glyphs for `=`, `[` and `'` while
 	// `_platform.key_names` names those keys `equals`, `leftbracket` and
@@ -121,7 +121,7 @@ func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
 	parsed, err := h.parseKeyEvent(req.DOMKeyEvent)
 	if err != nil {
 		branchkit.Logf("keyboard", "bind keydown: parse failed: %v", err)
-		return nil, nil
+		return nil
 	}
 
 	// Escape → cancel the capture, keep the picker open.
@@ -129,20 +129,20 @@ func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
 		return h.handleCancelBind(nil)
 	}
 	if parsed.IsBareModifier {
-		return nil, nil
+		return nil
 	}
 	if !parsed.HasModifiers {
 		h.mu.Lock()
 		h.state.BindError = "A binding needs at least one modifier key."
 		h.mu.Unlock()
-		return nil, nil
+		return nil
 	}
 
 	h.mu.Lock()
 	pending := h.state.PendingBind
 	if pending == nil {
 		h.mu.Unlock()
-		return nil, nil
+		return nil
 	}
 	// The binding is a user override: it wins over any plugin bind on the
 	// same combo, exactly as a remap does, and Reset removes it.
@@ -156,5 +156,5 @@ func (h *Host) handleBindKeydown(req *BindKeydownRequest) (any, error) {
 	// Outside the lock: registration is an RPC (same rule as handleRemap).
 	h.registerKeybinds(snapshot)
 	h.resumeKeybinds()
-	return nil, nil
+	return nil
 }
