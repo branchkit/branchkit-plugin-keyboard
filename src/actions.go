@@ -181,7 +181,7 @@ func (h *Host) handleInputScroll(p ScrollParams, req *branchkit.OnActionRequest)
 		u := string(*p.Unit)
 		unit = &u
 	}
-	logErr("input.scroll", h.plugin.InputScroll(p.Amount, string(p.Direction), unit))
+	logErr("input.scroll", h.plugin.InputScroll(string(p.Direction), p.Amount, unit))
 	return nil, nil
 }
 
@@ -195,7 +195,7 @@ func (h *Host) handleInputMouseDown(p MouseDownParams, req *branchkit.OnActionRe
 	if p.Button != nil && *p.Button != "" {
 		button = string(*p.Button)
 	}
-	logErr("input.mouse_down", h.plugin.InputMouseButton(&button, "press"))
+	logErr("input.mouse_down", h.plugin.InputMouseButton("press", &button))
 	return nil, nil
 }
 
@@ -204,7 +204,7 @@ func (h *Host) handleInputMouseUp(p MouseUpParams, req *branchkit.OnActionReques
 	if p.Button != nil && *p.Button != "" {
 		button = string(*p.Button)
 	}
-	logErr("input.mouse_up", h.plugin.InputMouseButton(&button, "release"))
+	logErr("input.mouse_up", h.plugin.InputMouseButton("release", &button))
 	return nil, nil
 }
 
