@@ -98,6 +98,14 @@ func loadRepeatConfig(p *branchkit.Plugin) repeatConfig {
 		RepeatInterval: 33 * time.Millisecond,
 	}
 
+	// Both stay raw, and not by oversight. These operations return a BARE
+	// f64 ("Result is the canonical f64 (no wrapper)"), and the generator
+	// can only express a struct result — so NativeKeyRepeatDelay() and
+	// NativeKeyRepeatRate() are generated as `() error` and discard the
+	// number entirely. Through the typed wrappers both reads would silently
+	// yield zero and the OS defaults would never be honoured. Recorded as
+	// OPEN in DESIGN_SDK_GENERATION_FIDELITY.md (2026-09-20); use the
+	// wrappers once a scalar result renders as `(float64, error)`.
 	var delay float64
 	if err := p.Call("native.key_repeat_delay", nil, &delay); err == nil && delay > 0 {
 		cfg.InitialDelay = time.Duration(delay * float64(time.Second))
@@ -123,10 +131,7 @@ func (h *Host) resolveKeyCode(name string) (int, bool) {
 }
 
 func (h *Host) pressRawKey(code int, direction string) {
-	logErr("repeat.raw_key", h.plugin.Call("input.raw_key", map[string]any{
-		"code":      code,
-		"direction": direction,
-	}, nil))
+	logErr("repeat.raw_key", h.plugin.InputRawKey(code, direction))
 }
 
 func (h *Host) startHold(t keyTarget, mods []string, repeat bool) {

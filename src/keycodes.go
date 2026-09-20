@@ -35,6 +35,10 @@ type ParsedKeyEvent = branchkit.InputParseKeyEventResponse
 // real cost of centralising. Tests swap this the same way they already swap
 // `fetchBindableCommands`.
 func (h *Host) parseKeyEventDefault(ev DOMKeyEvent) (ParsedKeyEvent, error) {
-	var parsed ParsedKeyEvent
-	return parsed, h.plugin.Call("input.parse_key_event", ev, &parsed)
+	res, err := h.plugin.InputParseKeyEvent(
+		&ev.AltKey, &ev.Code, &ev.CtrlKey, &ev.Key, &ev.MetaKey, &ev.ShiftKey)
+	if err != nil {
+		return ParsedKeyEvent{}, err
+	}
+	return *res, nil
 }

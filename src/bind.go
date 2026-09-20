@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"sort"
 
 	branchkit "github.com/branchkit/plugin-sdk-go"
@@ -21,24 +20,20 @@ type bindCandidate struct {
 // Var seam so handler tests can run the real picker flow without a live
 // actuator behind plugin.Call.
 func (h *Host) fetchBindableCommandsDefault() ([]bindCandidate, error) {
-	var resp struct {
-		Commands []struct {
-			ID          string          `json:"id"`
-			OwnerPlugin string          `json:"owner_plugin"`
-			Pattern     string          `json:"pattern"`
-			Binding     json.RawMessage `json:"binding"`
-		} `json:"commands"`
-	}
-	if err := h.plugin.Call("commands.enumerate", struct{}{}, &resp); err != nil {
+	commands, err := h.plugin.CommandsEnumerate()
+	if err != nil {
 		return nil, err
 	}
-	out := make([]bindCandidate, 0, len(resp.Commands))
-	for _, c := range resp.Commands {
-		if len(c.Binding) == 0 {
+	out := make([]bindCandidate, 0, len(commands))
+	for _, c := range commands {
+		// `binding` is typed as *KeybindBinding on the generated command
+		// (declared 2026-09-19), so the raw-JSON unmarshal this used to do
+		// is gone — absence is a nil pointer rather than a zero-length blob.
+		if c.Binding == nil {
 			continue
 		}
-		var b Binding
-		if err := json.Unmarshal(c.Binding, &b); err != nil || b.IsZero() {
+		b := Binding{Action: c.Binding.Action, Params: c.Binding.Params}
+		if b.IsZero() {
 			continue
 		}
 		out = append(out, bindCandidate{ID: c.ID, Pattern: c.Pattern, Owner: c.OwnerPlugin, B: b})

@@ -97,7 +97,11 @@ func (h *Host) fetchKeybindsByPlugin() (map[string]map[string]Binding, error) {
 			Params   json.RawMessage `json:"params"`
 		} `json:"data"`
 	}
-	if err := h.plugin.Call("collection.get", map[string]string{"name": "keybinds"}, &storeResp); err != nil {
+	got, err := h.plugin.CollectionGet("keybinds")
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(got.Data, &storeResp.Data); err != nil {
 		return nil, err
 	}
 	out := make(map[string]map[string]Binding)
@@ -330,10 +334,7 @@ func (h *Host) resumeKeybinds() {
 // combos until the next plugin restart. A test seam (var) so handler tests
 // can assert the registration actually happens.
 func (h *Host) registerKeybindsDefault(snapshot RegistrySnapshot) {
-	regBody := struct {
-		Snapshot any `json:"snapshot"`
-	}{Snapshot: snapshot}
-	if err := h.plugin.Call("keybinds.register", regBody, nil); err != nil {
+	if _, err := h.plugin.KeybindsRegister(snapshot); err != nil {
 		branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		return
 	}
@@ -415,10 +416,8 @@ const keyNamesCollection = "_platform.key_names"
 // settings tab, and hold-to-repeat's code lookup. Read-only: the platform seeds
 // and resolves from the same records, so there is nothing to push back.
 func (h *Host) refreshKeycodesFromCollection() {
-	var resp struct {
-		Entries map[string]json.RawMessage `json:"entries"`
-	}
-	if err := h.plugin.Call("collection.get", map[string]string{"name": keyNamesCollection}, &resp); err != nil {
+	resp, err := h.plugin.CollectionGet(keyNamesCollection)
+	if err != nil {
 		branchkit.Logf("keyboard", "failed to read %s: %v", keyNamesCollection, err)
 		return
 	}
@@ -478,8 +477,8 @@ func (h *Host) loadAndPushLayoutCharacters(p *branchkit.Plugin) {
 		LayoutName string            `json:"layout_name"`
 		Mappings   map[string]string `json:"mappings"`
 	}
-	var layout layoutResp
-	if err := p.Call("native.keyboard_layout", nil, &layout); err != nil {
+	layout, err := p.NativeKeyboardLayout()
+	if err != nil {
 		branchkit.Logf("keyboard", "Failed to fetch keyboard layout: %v", err)
 		return
 	}
@@ -604,10 +603,7 @@ func main() {
 		snapshot := h.state.rebuild(h)
 		h.mu.Unlock()
 
-		regBody := struct {
-			Snapshot any `json:"snapshot"`
-		}{Snapshot: snapshot}
-		if err := h.plugin.Call("keybinds.register", regBody, nil); err != nil {
+		if _, err := h.plugin.KeybindsRegister(snapshot); err != nil {
 			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		} else {
 			branchkit.Logf("keyboard", "Initial keybind registration complete")
@@ -643,10 +639,7 @@ func main() {
 		h.mu.Unlock()
 
 		// Register keybinds with the platform (replaces content_type side effect)
-		regBody := struct {
-			Snapshot any `json:"snapshot"`
-		}{Snapshot: snapshot}
-		if err := h.plugin.Call("keybinds.register", regBody, nil); err != nil {
+		if _, err := h.plugin.KeybindsRegister(snapshot); err != nil {
 			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		}
 		branchkit.Logf("keyboard", "rebuilt keybinds from store update")

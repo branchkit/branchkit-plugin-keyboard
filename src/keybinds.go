@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+
+	"github.com/branchkit/plugin-sdk-go"
 )
 
 // Binding is what a combo points at: an exact dotted action type plus its
@@ -222,17 +224,14 @@ func (r *InternalRegistry) resolve(c KeyCombo) (KeybindEntry, bool) {
 
 // --- JSON interchange types ---
 
-type RegistrySnapshot struct {
-	Entries  []RegistryEntry `json:"entries"`
-	ListenUp []string        `json:"listen_up"`
-}
-
-type RegistryEntry struct {
-	Combo  string          `json:"combo"`
-	Action string          `json:"action"`
-	Source string          `json:"source"`
-	Params json.RawMessage `json:"params,omitempty"`
-}
+// Aliases, not mirrors — the same reasoning keycodes.go gives for
+// ParsedKeyEvent: "a hand-written mirror of a platform shape zero-fills
+// silently when the platform renames a field; this breaks the build
+// instead." These two WERE mirrors, byte-identical to the generated
+// shapes, until 2026-09-20. keybinds.register takes the generated type,
+// so aliasing also lets the call site use the wrapper.
+type RegistrySnapshot = branchkit.RegistrySnapshot
+type RegistryEntry = branchkit.RegistryEntry
 
 func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
 	entries := make([]RegistryEntry, 0, len(r.Entries))
