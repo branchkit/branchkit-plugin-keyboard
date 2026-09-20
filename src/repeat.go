@@ -98,21 +98,15 @@ func loadRepeatConfig(p *branchkit.Plugin) repeatConfig {
 		RepeatInterval: 33 * time.Millisecond,
 	}
 
-	// Both stay raw, and not by oversight. These operations return a BARE
-	// f64 ("Result is the canonical f64 (no wrapper)"), and the generator
-	// can only express a struct result — so NativeKeyRepeatDelay() and
-	// NativeKeyRepeatRate() are generated as `() error` and discard the
-	// number entirely. Through the typed wrappers both reads would silently
-	// yield zero and the OS defaults would never be honoured. Recorded as
-	// OPEN in DESIGN_SDK_GENERATION_FIDELITY.md (2026-09-20); use the
-	// wrappers once a scalar result renders as `(float64, error)`.
-	var delay float64
-	if err := p.Call("native.key_repeat_delay", nil, &delay); err == nil && delay > 0 {
+	// These were the last two raw calls in this plugin, held back because a
+	// bare-f64 result generated as `() error` and discarded the number. The
+	// emitter renders a scalar result as `(float64, error)` since
+	// 2026-09-20, so they read through the wrapper now.
+	if delay, err := p.NativeKeyRepeatDelay(); err == nil && delay > 0 {
 		cfg.InitialDelay = time.Duration(delay * float64(time.Second))
 	}
 
-	var rate float64
-	if err := p.Call("native.key_repeat_rate", nil, &rate); err == nil && rate > 0 {
+	if rate, err := p.NativeKeyRepeatRate(); err == nil && rate > 0 {
 		cfg.RepeatInterval = time.Duration(float64(time.Second) / rate)
 	}
 
