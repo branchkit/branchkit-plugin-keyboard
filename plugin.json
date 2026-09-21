@@ -3,7 +3,9 @@
   "id": "keyboard",
   "name": "Keyboard",
   "icon": "keyboard",
-  "privileges": ["input"],
+  "requires": {
+    "privileges": ["input"]
+  },
   "version": "1.0.0",
   "min_api_version": "0.1.0",
   "description": "Global hotkey capture, keybind registry, and input simulation.",
