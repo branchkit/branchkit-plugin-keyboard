@@ -177,3 +177,54 @@ func TestBindKeydownRequiresModifiers(t *testing.T) {
 		t.Fatal("capture stays open so the user can try again")
 	}
 }
+
+// Two plugins asking for one chord is a situation the platform invites —
+// `keybinds` is writers: anyone_who_declares — so the loser has to be
+// reported rather than dropped. Before this, the collision was a bare
+// `continue`: the binding simply was not there, with no error, no log line
+// and nothing in the settings tab.
+func TestCollidingKeybindIsRecordedNotDropped(t *testing.T) {
+	h := newTestHost()
+	origLoad := h.loadUserKeybindOverrides
+	h.loadUserKeybindOverrides = func() map[string]Binding { return map[string]Binding{} }
+	defer func() { h.loadUserKeybindOverrides = origLoad }()
+
+	reg := h.buildRegistry(map[string]map[string]Binding{
+		"voice":    {"alt+shift+h": {Action: "voice.help_toggle"}},
+		"snippets": {"alt+shift+h": {Action: "snippets.type"}},
+	})
+
+	if len(reg.Entries) != 1 {
+		t.Fatalf("one chord is one binding, got %d entries", len(reg.Entries))
+	}
+	// Alphabetical: snippets < voice, so snippets holds it.
+	for _, e := range reg.Entries {
+		if e.Source.PluginID != "snippets" {
+			t.Fatalf("first plugin alphabetically should win, got %q", e.Source.PluginID)
+		}
+	}
+
+	if len(reg.Shadowed) != 1 {
+		t.Fatalf("the losing binding must be recorded, got %d shadowed", len(reg.Shadowed))
+	}
+	s := reg.Shadowed[0]
+	if s.PluginID != "voice" || s.WonBy != "snippets" || s.Action != "voice.help_toggle" {
+		t.Fatalf("shadowed entry should name both sides and the action: %+v", s)
+	}
+}
+
+// A plugin binding two different chords is not a collision.
+func TestDistinctKeybindsAreNotShadowed(t *testing.T) {
+	h := newTestHost()
+	origLoad := h.loadUserKeybindOverrides
+	h.loadUserKeybindOverrides = func() map[string]Binding { return map[string]Binding{} }
+	defer func() { h.loadUserKeybindOverrides = origLoad }()
+
+	reg := h.buildRegistry(map[string]map[string]Binding{
+		"voice":    {"alt+shift+h": {Action: "voice.help_toggle"}},
+		"snippets": {"alt+shift+s": {Action: "snippets.type"}},
+	})
+	if len(reg.Entries) != 2 || len(reg.Shadowed) != 0 {
+		t.Fatalf("expected 2 entries and 0 shadowed, got %d and %d", len(reg.Entries), len(reg.Shadowed))
+	}
+}

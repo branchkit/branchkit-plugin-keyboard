@@ -196,9 +196,26 @@ type KeybindEntry struct {
 	Source KeybindSource
 }
 
+// ShadowedBind is a plugin binding that lost its combo to another plugin.
+//
+// Kept rather than discarded. Two plugins asking for one chord is a real
+// situation the platform invites — `keybinds` is `writers:
+// anyone_who_declares` — and the loser is a declaration the author wrote
+// that now does nothing. Silence there is the failure: the author sees no
+// error, the user sees no clash, and the binding is simply absent.
+type ShadowedBind struct {
+	Combo    KeyCombo
+	Action   string
+	PluginID string // the plugin whose binding did not take effect
+	WonBy    string // the plugin holding the combo
+}
+
 type InternalRegistry struct {
 	Entries  map[string]KeybindEntry // keyed by comboKey
 	ListenUp map[string]bool
+	// Plugin bindings that collided with an earlier one. Never registered
+	// with the shell — they are reported, not applied.
+	Shadowed []ShadowedBind
 }
 
 func newRegistry() InternalRegistry {
@@ -284,8 +301,22 @@ func (h *Host) buildRegistry(
 				continue
 			}
 			key := comboKey(combo)
-			if _, exists := reg.Entries[key]; exists {
-				continue // first plugin wins
+			if existing, exists := reg.Entries[key]; exists {
+				// First plugin alphabetically wins. That is deterministic,
+				// which matters more than it sounds — but it is arbitrary,
+				// so the one that lost has to be visible somewhere rather
+				// than vanishing. Within this loop every existing entry is
+				// plugin-sourced; user overrides are applied in step 2.
+				reg.Shadowed = append(reg.Shadowed, ShadowedBind{
+					Combo:    combo,
+					Action:   b.Action,
+					PluginID: pluginID,
+					WonBy:    existing.Source.PluginID,
+				})
+				branchkit.Logf("keyboard",
+					"keybind %s: %s wanted %q but %s holds it — first plugin alphabetically wins; rebind one of them in Settings",
+					combo.String(), pluginID, b.Action, existing.Source.PluginID)
+				continue
 			}
 			reg.Entries[key] = KeybindEntry{
 				Combo:  combo,

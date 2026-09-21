@@ -13,6 +13,10 @@ type KeybindSettingsData struct {
 	BindRows       []bindRowView
 	PendingBind    string
 	BindError      string
+	// Bindings that never took effect because another plugin already held
+	// the chord. Shown after the live rows: a declaration that does nothing
+	// is worth a line, and the fix (rebind one of them) is right here.
+	Shadowed       []shadowedRowView
 }
 
 templ KeybindSettings(data KeybindSettingsData) {
@@ -74,6 +78,19 @@ templ KeybindSettings(data KeybindSettingsData) {
 					<div class="value">{ row.ActionLabel }</div>
 					<div><span class={ "badge", row.BadgeClass }>{ row.SourceLabel }</span></div>
 					<div></div>
+				</div>
+			}
+		}
+		if len(data.Shadowed) > 0 {
+			<div class="kb-group-header">
+				Not in effect &mdash; the chord is already taken
+			</div>
+			for _, row := range data.Shadowed {
+				<div class="settings-row kb-shadowed">
+					<div class="label kb-combo-cell">{ row.ComboDisplay }</div>
+					<div>{ row.ActionLabel }</div>
+					<div><span class="badge badge-core">{ row.PluginID }</span></div>
+					<div class="kb-shadowed-note">held by { row.WonBy }</div>
 				</div>
 			}
 		}

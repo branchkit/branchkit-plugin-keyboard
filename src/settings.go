@@ -22,6 +22,15 @@ type keybindGroupView struct {
 	Rows       []keybindRowView
 }
 
+// shadowedRowView is one binding that never took effect because another
+// plugin already held the chord.
+type shadowedRowView struct {
+	ComboDisplay string
+	ActionLabel  string
+	PluginID     string
+	WonBy        string
+}
+
 type bindRowView struct {
 	ID      string
 	Pattern string
@@ -165,8 +174,22 @@ func renderSettings(ps *PluginState, search string) (string, error) {
 	bindError := ps.BindError
 	ps.BindError = ""
 
+	var shadowed []shadowedRowView
+	for _, s := range ps.Registry.Shadowed {
+		shadowed = append(shadowed, shadowedRowView{
+			ComboDisplay: comboBaseString(s.Combo),
+			ActionLabel:  humanizeAction(s.Action),
+			PluginID:     s.PluginID,
+			WonBy:        s.WonBy,
+		})
+	}
+	sort.Slice(shadowed, func(i, j int) bool {
+		return shadowed[i].ComboDisplay < shadowed[j].ComboDisplay
+	})
+
 	data := KeybindSettingsData{
 		Groups:         groups,
+		Shadowed:       shadowed,
 		HasOverrides:   hasOverrides,
 		RemappingCombo: ps.RemappingCombo,
 		BindPickerOpen: ps.BindPicker != nil,
