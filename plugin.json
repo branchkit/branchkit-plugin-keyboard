@@ -7,7 +7,7 @@
     "privileges": ["input"]
   },
   "version": "1.0.0",
-  "min_api_version": "0.1.0",
+  "min_api_version": "0.2.0",
   "description": "Global hotkey capture, keybind registry, and input simulation.",
   "author": "BranchKit",
   "publisher": "github:branchkit",
