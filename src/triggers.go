@@ -11,8 +11,9 @@ import (
 // combo is one. The platform owns the collection (`_platform.triggers`) and
 // the chip forms; this plugin supplies the data — one record per binding
 // that will fire, replaced as a set after every registry rebuild so the
-// records are exactly the live bindings (DESIGN_PLATFORM_SETTINGS_PAGES.md,
-// "Decided: dispatcher trigger declarations").
+// records are exactly the live bindings. A trigger record is a label, not a
+// capability: the platform shows it on the owning plugin's action row and
+// never dispatches from it.
 const triggersCollection = "_platform.triggers"
 
 type triggerRecord struct {
