@@ -3,6 +3,7 @@ package main
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
@@ -32,6 +33,13 @@ type Host struct {
 	loadUserKeybindOverrides func() map[string]Binding
 	saveUserKeybindOverrides func(overrides map[string]Binding)
 	parseKeyEvent            func(ev DOMKeyEvent) (ParsedKeyEvent, error)
+
+	// The hotkey pause a key capture holds (pauseKeybinds), as seams so a
+	// test can watch it, and the timer that bounds it (captureTimeout).
+	holdPause    func()
+	releasePause func()
+	captureMu    sync.Mutex
+	captureTimer *time.Timer
 }
 
 func newHost(p *branchkit.Plugin) *Host {
@@ -41,5 +49,7 @@ func newHost(p *branchkit.Plugin) *Host {
 	h.loadUserKeybindOverrides = h.loadUserKeybindOverridesDefault
 	h.saveUserKeybindOverrides = h.saveUserKeybindOverridesDefault
 	h.parseKeyEvent = h.parseKeyEventDefault
+	h.holdPause = h.holdPauseDefault
+	h.releasePause = h.releasePauseDefault
 	return h
 }

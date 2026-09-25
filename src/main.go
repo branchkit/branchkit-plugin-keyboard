@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
@@ -303,7 +304,56 @@ func (h *Host) handleResetAll(_ *struct{}) error {
 // the accepted race of the old boot-time resume is gone), and release in
 // `cleanup_terminated_plugin` if this process dies mid-capture, on every
 // platform. No boot-time reconcile needed anymore for exactly that reason.
+//
+// A capture also bounds its own pause (captureTimeout). Nothing tells this
+// plugin when the Settings tab closes mid-capture, so a capture abandoned
+// that way held every hotkey paused: on macOS until the shell's 30 s
+// auto-resume, on Linux and Windows until this plugin restarted. The bound
+// lives here, with the holder, on every OS; the shell's timer then had no
+// job left (2026-09-25).
 func (h *Host) pauseKeybinds() {
+	h.armCaptureTimeout()
+	h.holdPause()
+}
+
+func (h *Host) resumeKeybinds() {
+	h.stopCaptureTimeout()
+	h.releasePause()
+}
+
+// captureTimeout is how long a capture may hold the pause. A var so tests
+// can shorten it.
+var captureTimeout = 30 * time.Second
+
+func (h *Host) armCaptureTimeout() {
+	h.captureMu.Lock()
+	defer h.captureMu.Unlock()
+	if h.captureTimer != nil {
+		h.captureTimer.Stop()
+	}
+	h.captureTimer = time.AfterFunc(captureTimeout, h.expireCapture)
+}
+
+func (h *Host) stopCaptureTimeout() {
+	h.captureMu.Lock()
+	defer h.captureMu.Unlock()
+	if h.captureTimer != nil {
+		h.captureTimer.Stop()
+		h.captureTimer = nil
+	}
+}
+
+// expireCapture cancels whatever capture is open, as Cancel would.
+func (h *Host) expireCapture() {
+	h.mu.Lock()
+	h.state.RemappingCombo = ""
+	h.state.PendingBind = nil
+	h.mu.Unlock()
+	branchkit.Logf("keyboard", "key capture idle for %s — cancelled, hotkeys resumed", captureTimeout)
+	h.resumeKeybinds()
+}
+
+func (h *Host) holdPauseDefault() {
 	out, err := h.plugin.AssertEffect("suppress_keybinds")
 	if err != nil {
 		branchkit.Logf("keyboard", "suppress_keybinds assert failed: %v", err)
@@ -316,7 +366,7 @@ func (h *Host) pauseKeybinds() {
 	}
 }
 
-func (h *Host) resumeKeybinds() {
+func (h *Host) releasePauseDefault() {
 	if _, _, err := h.plugin.RetractEffect("suppress_keybinds"); err != nil {
 		branchkit.Logf("keyboard", "suppress_keybinds retract failed: %v", err)
 	}
