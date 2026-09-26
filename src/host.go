@@ -32,7 +32,13 @@ type Host struct {
 	fetchBindableCommands    func() ([]bindCandidate, error)
 	loadUserKeybindOverrides func() map[string]Binding
 	saveUserKeybindOverrides func(overrides map[string]Binding)
-	parseKeyEvent            func(ev DOMKeyEvent) (ParsedKeyEvent, error)
+	// overridesUnreadable is set when reading the overrides record FAILED
+	// (not when it was absent or unparseable). Every remap is load, edit,
+	// save the whole map, so saving after a failed read would replace the
+	// user's saved overrides with just the one edit. Saves refuse while it
+	// is set; the next successful read clears it.
+	overridesUnreadable atomic.Bool
+	parseKeyEvent       func(ev DOMKeyEvent) (ParsedKeyEvent, error)
 
 	// The hotkey pause a key capture holds (pauseKeybinds), as seams so a
 	// test can watch it, and the timer that bounds it (captureTimeout).
