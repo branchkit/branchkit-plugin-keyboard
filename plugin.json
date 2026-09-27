@@ -75,7 +75,7 @@
         { "key": "amount", "label": "Amount", "field_type": "int", "required": false }
       ]
     },
-    "move": {
+    "move": { "uses": ["native.warp_cursor"],
       "label": "Move Cursor",
       "fields": [
         { "key": "x", "label": "X", "field_type": "int", "required": true },
