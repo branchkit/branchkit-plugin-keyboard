@@ -98,7 +98,7 @@ func (h *Host) fetchKeybindsByPlugin() (map[string]map[string]Binding, error) {
 			Params   json.RawMessage `json:"params"`
 		} `json:"data"`
 	}
-	got, err := h.plugin.CollectionGet("keybinds")
+	got, err := h.plugin.CollectionGet(branchkit.CollectionGetRequest{Name: "keybinds"})
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +384,7 @@ func (h *Host) releasePauseDefault() {
 // combos until the next plugin restart. A test seam (var) so handler tests
 // can assert the registration actually happens.
 func (h *Host) registerKeybindsDefault(snapshot RegistrySnapshot) {
-	if _, err := h.plugin.KeybindsRegister(snapshot); err != nil {
+	if _, err := h.plugin.KeybindsRegister(branchkit.KeybindsRegisterRequest{Snapshot: snapshot}); err != nil {
 		branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		return
 	}
@@ -466,7 +466,7 @@ const keyNamesCollection = "_platform.key_names"
 // settings tab, and hold-to-repeat's code lookup. Read-only: the platform seeds
 // and resolves from the same records, so there is nothing to push back.
 func (h *Host) refreshKeycodesFromCollection() {
-	resp, err := h.plugin.CollectionGet(keyNamesCollection)
+	resp, err := h.plugin.CollectionGet(branchkit.CollectionGetRequest{Name: keyNamesCollection})
 	if err != nil {
 		branchkit.Logf("keyboard", "failed to read %s: %v", keyNamesCollection, err)
 		return
@@ -653,7 +653,7 @@ func main() {
 		snapshot := h.state.rebuild(h)
 		h.mu.Unlock()
 
-		if _, err := h.plugin.KeybindsRegister(snapshot); err != nil {
+		if _, err := h.plugin.KeybindsRegister(branchkit.KeybindsRegisterRequest{Snapshot: snapshot}); err != nil {
 			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		} else {
 			branchkit.Logf("keyboard", "Initial keybind registration complete")
@@ -689,7 +689,7 @@ func main() {
 		h.mu.Unlock()
 
 		// Register keybinds with the platform (replaces content_type side effect)
-		if _, err := h.plugin.KeybindsRegister(snapshot); err != nil {
+		if _, err := h.plugin.KeybindsRegister(branchkit.KeybindsRegisterRequest{Snapshot: snapshot}); err != nil {
 			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
 		}
 		branchkit.Logf("keyboard", "rebuilt keybinds from store update")

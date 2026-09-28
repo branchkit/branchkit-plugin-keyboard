@@ -125,7 +125,7 @@ func (h *Host) resolveKeyCode(name string) (int, bool) {
 }
 
 func (h *Host) pressRawKey(code int, direction string) {
-	logErr("repeat.raw_key", h.plugin.InputRawKey(code, direction))
+	logErr("repeat.raw_key", h.plugin.InputRawKey(branchkit.InputRawKeyRequest{Code: code, Direction: direction}))
 }
 
 func (h *Host) startHold(t keyTarget, mods []string, repeat bool) {

@@ -63,7 +63,7 @@ func (h *Host) handleInputType(p TypeParams, req *branchkit.OnActionRequest) (an
 	if p.Text == "" {
 		return nil, nil
 	}
-	logErr("input.type", h.plugin.InputTypeText(p.Text))
+	logErr("input.type", h.plugin.InputTypeText(branchkit.InputTypeTextRequest{Text: p.Text}))
 	return nil, nil
 }
 
@@ -89,12 +89,12 @@ func (h *Host) handleInputKeyByName(p KeyByNameParams, req *branchkit.OnActionRe
 	// "text" strategy: paste text equivalent instead of key event (when no modifiers)
 	if p.Strategy != nil && *p.Strategy == KeyByNameStrategyText && len(p.Modifiers) == 0 {
 		if textEquiv := keyTextEquivalent(p.Name); textEquiv != "" {
-			logErr("input.key_by_name", h.plugin.InputTypeText(textEquiv))
+			logErr("input.key_by_name", h.plugin.InputTypeText(branchkit.InputTypeTextRequest{Text: textEquiv}))
 			return nil, nil
 		}
 	}
 	mods := mergeModifiers(p.Modifiers, h.activeModifiers())
-	logErr("input.key_by_name", h.plugin.InputPressKey(nil, mods, &p.Name))
+	logErr("input.key_by_name", h.plugin.InputPressKey(branchkit.InputPressKeyRequest{Modifiers: mods, Name: &p.Name}))
 	return nil, nil
 }
 
@@ -110,7 +110,7 @@ func (h *Host) handleInputKey(p KeyParams, req *branchkit.OnActionRequest) (any,
 		}
 		return nil, nil
 	}
-	logErr("input.key", h.plugin.InputPressKey(&p.Code, h.activeModifiers(), nil))
+	logErr("input.key", h.plugin.InputPressKey(branchkit.InputPressKeyRequest{Code: &p.Code, Modifiers: h.activeModifiers()}))
 	return nil, nil
 }
 
@@ -134,7 +134,7 @@ func (h *Host) handleInputShortcutByName(p ShortcutByNameParams, req *branchkit.
 		return nil, nil
 	}
 	mods := mergeModifiers(p.Modifiers, h.activeModifiers())
-	logErr("input.shortcut_by_name", h.plugin.InputPressKey(nil, mods, &p.Name))
+	logErr("input.shortcut_by_name", h.plugin.InputPressKey(branchkit.InputPressKeyRequest{Modifiers: mods, Name: &p.Name}))
 	return nil, nil
 }
 
@@ -151,7 +151,7 @@ func (h *Host) handleInputShortcut(p ShortcutParams, req *branchkit.OnActionRequ
 		return nil, nil
 	}
 	mods := mergeModifiers(p.Modifiers, h.activeModifiers())
-	logErr("input.shortcut", h.plugin.InputPressKey(&p.Code, mods, nil))
+	logErr("input.shortcut", h.plugin.InputPressKey(branchkit.InputPressKeyRequest{Code: &p.Code, Modifiers: mods}))
 	return nil, nil
 }
 
@@ -165,13 +165,13 @@ func (h *Host) handleInputRawKey(p RawKeyParams, req *branchkit.OnActionRequest)
 	case p.Down != nil:
 		direction = "release"
 	}
-	logErr("input.raw_key", h.plugin.InputRawKey(p.Code, direction))
+	logErr("input.raw_key", h.plugin.InputRawKey(branchkit.InputRawKeyRequest{Code: p.Code, Direction: direction}))
 	return nil, nil
 }
 
 func (h *Host) handleInputClick(p ClickParams, req *branchkit.OnActionRequest) (any, error) {
 	button := buttonOrLeft(p.Button)
-	logErr("input.click", h.plugin.InputClick(&button))
+	logErr("input.click", h.plugin.InputClick(branchkit.InputClickRequest{Button: &button}))
 	return nil, nil
 }
 
@@ -181,12 +181,12 @@ func (h *Host) handleInputScroll(p ScrollParams, req *branchkit.OnActionRequest)
 		u := string(*p.Unit)
 		unit = &u
 	}
-	logErr("input.scroll", h.plugin.InputScroll(string(p.Direction), p.Amount, unit))
+	logErr("input.scroll", h.plugin.InputScroll(branchkit.InputScrollRequest{Direction: string(p.Direction), Amount: p.Amount, Unit: unit}))
 	return nil, nil
 }
 
 func (h *Host) handleInputMove(p MoveParams, req *branchkit.OnActionRequest) (any, error) {
-	logErr("input.move", h.plugin.NativeWarpCursor(p.X, p.Y))
+	logErr("input.move", h.plugin.NativeWarpCursor(branchkit.NativeWarpCursorRequest{X: p.X, Y: p.Y}))
 	return nil, nil
 }
 
@@ -195,7 +195,7 @@ func (h *Host) handleInputMouseDown(p MouseDownParams, req *branchkit.OnActionRe
 	if p.Button != nil && *p.Button != "" {
 		button = string(*p.Button)
 	}
-	logErr("input.mouse_down", h.plugin.InputMouseButton("press", &button))
+	logErr("input.mouse_down", h.plugin.InputMouseButton(branchkit.InputMouseButtonRequest{Direction: "press", Button: &button}))
 	return nil, nil
 }
 
@@ -204,7 +204,7 @@ func (h *Host) handleInputMouseUp(p MouseUpParams, req *branchkit.OnActionReques
 	if p.Button != nil && *p.Button != "" {
 		button = string(*p.Button)
 	}
-	logErr("input.mouse_up", h.plugin.InputMouseButton("release", &button))
+	logErr("input.mouse_up", h.plugin.InputMouseButton(branchkit.InputMouseButtonRequest{Direction: "release", Button: &button}))
 	return nil, nil
 }
 
@@ -213,7 +213,7 @@ func (h *Host) handleInputClipboard(p ClipboardParams, req *branchkit.OnActionRe
 	if p.Text != nil && *p.Text != "" {
 		text = p.Text
 	}
-	logErr("input.clipboard", h.plugin.InputClipboardAction(string(p.Action), text))
+	logErr("input.clipboard", h.plugin.InputClipboardAction(branchkit.InputClipboardActionRequest{Action: string(p.Action), Text: text}))
 	return nil, nil
 }
 
