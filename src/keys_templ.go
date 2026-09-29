@@ -85,7 +85,7 @@ func KeysSettings(data keysTemplateData) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, k := range data.Keys {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"settings-row\"><div class=\"label\"><span class=\"keys-name\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"settings-row\"><div class=\"label mono\"><span class=\"keys-name\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

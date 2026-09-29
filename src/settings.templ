@@ -52,7 +52,7 @@ templ KeybindSettings(data KeybindSettingsData) {
 			</div>
 			for _, row := range group.Rows {
 				<div class={ "settings-row", templ.KV("modified", row.IsOverride) }>
-					<div class="label kb-combo-cell">
+					<div class="label mono kb-combo-cell">
 						if data.RemappingCombo == row.ComboKey {
 							<input
 								type="text"
@@ -93,7 +93,7 @@ templ KeybindSettings(data KeybindSettingsData) {
 			</div>
 			for _, row := range data.Shadowed {
 				<div class="settings-row kb-shadowed">
-					<div class="label kb-combo-cell">{ row.ComboDisplay }</div>
+					<div class="label mono kb-combo-cell">{ row.ComboDisplay }</div>
 					<div>{ row.ActionLabel }</div>
 					<div><span class="badge badge-core">{ row.PluginID }</span></div>
 					<div class="kb-shadowed-note">held by { row.WonBy }</div>
@@ -116,7 +116,7 @@ templ BindPicker(data KeybindSettingsData) {
 		</div>
 		if data.PendingBind != "" {
 			<div class="settings-row">
-				<div class="label kb-combo-cell kb-combo-cell--full">
+				<div class="label mono kb-combo-cell kb-combo-cell--full">
 					<span>{ data.PendingBind }</span>
 					<input
 						type="text"
@@ -134,7 +134,7 @@ templ BindPicker(data KeybindSettingsData) {
 		} else {
 			for _, r := range data.BindRows {
 				<div class="settings-row">
-					<div class="label">{ r.Pattern }</div>
+					<div class="label mono">{ r.Pattern }</div>
 					<div class="value">{ r.Owner }</div>
 					<div></div>
 					<div class="align-right">
