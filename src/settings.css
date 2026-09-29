@@ -53,20 +53,15 @@
     50% { border-color: color-mix(in oklab, var(--brand-accent-0) 30%, transparent); }
 }
 
-/* The header's own actions — bind a command, reset everything. */
-.kb-header-actions {
-    text-align: right;
+/* The page's own actions — bind a command, reset everything — above the table. */
+.kb-toolbar {
     display: flex;
     gap: var(--size--2);
     justify-content: flex-end;
+    margin-bottom: var(--size--1);
 }
 
 /* Buttons that sit inside a row rather than under it. */
-.kb-small-btn {
-    font-size: var(--font-size--2);
-    padding: var(--size--2) var(--size--2);
-}
-
 /* A keydown the plugin could not turn into a binding. */
 .kb-bind-error {
     padding: var(--size--2) var(--size-3);

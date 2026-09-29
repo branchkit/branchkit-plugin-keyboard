@@ -20,19 +20,25 @@ type KeybindSettingsData struct {
 }
 
 templ KeybindSettings(data KeybindSettingsData) {
+	// The page's own verbs sit above the table, not in the actions column's
+	// header: that column is sized for a row's one button, and two labels in
+	// it either wrapped onto two lines or ran over the Source heading.
+	if !data.BindPickerOpen || data.HasOverrides {
+		<div class="kb-toolbar">
+			if !data.BindPickerOpen {
+				<button class="small" data-on:click={ branchkit.MethodPost("open_bind_picker", "") }>Bind a command…</button>
+			}
+			if data.HasOverrides {
+				<button class="small" data-on:click={ branchkit.MethodPost("reset_all", "") }>Reset all</button>
+			}
+		</div>
+	}
 	<bk-table columns="1fr 2fr 100px 100px" narrow="ladder" priority="0 0 1 0">
 		<div class="table-header">
 			<div>Keybind</div>
 			<div>Action</div>
 			<div>Source</div>
-			<div class="kb-header-actions">
-				if !data.BindPickerOpen {
-					<button class="kb-small-btn" data-on:click={ branchkit.MethodPost("open_bind_picker", "") }>Bind a command…</button>
-				}
-				if data.HasOverrides {
-					<button class="kb-small-btn" data-on:click={ branchkit.MethodPost("reset_all", "") }>Reset All</button>
-				}
-			</div>
+			<div></div>
 		</div>
 		if data.BindError != "" {
 			<div class="kb-bind-error">{ data.BindError }</div>
@@ -132,7 +138,7 @@ templ BindPicker(data KeybindSettingsData) {
 					<div class="value">{ r.Owner }</div>
 					<div></div>
 					<div class="align-right">
-						<button class="kb-small-btn" data-on:click__debounce.500ms.leading={ branchkit.MethodPost("choose_bind", ui.Args("id", r.ID)) }>Bind</button>
+						<button class="small" data-on:click__debounce.500ms.leading={ branchkit.MethodPost("choose_bind", ui.Args("id", r.ID)) }>Bind</button>
 					</div>
 				</div>
 			}
