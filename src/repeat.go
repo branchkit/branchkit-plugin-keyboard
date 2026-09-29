@@ -90,7 +90,8 @@ func (h *Host) activeModifiers() []string {
 	return result
 }
 
-const safetyTimeout = 30 * time.Second
+// defaultSafetyTimeout releases a repeating hold whose stop never arrived.
+const defaultSafetyTimeout = 30 * time.Second
 
 func loadRepeatConfig(p *branchkit.Plugin) repeatConfig {
 	cfg := repeatConfig{
@@ -124,7 +125,9 @@ func (h *Host) resolveKeyCode(name string) (int, bool) {
 	return 0, false
 }
 
-func (h *Host) pressRawKey(code int, direction string) {
+func (h *Host) pressRawKey(code int, direction string) { h.rawKey(code, direction) }
+
+func (h *Host) rawKeyDefault(code int, direction string) {
 	logErr("repeat.raw_key", h.plugin.InputRawKey(branchkit.InputRawKeyRequest{Code: code, Direction: direction}))
 }
 
@@ -178,9 +181,17 @@ func (h *Host) stopHold(t keyTarget, mods []string) {
 
 	h.mu.Lock()
 	hold := h.activeHold
-	if hold != nil {
-		h.activeHold = nil
+	if hold != nil && hold.key.code != t.code {
+		// A stale stop: t is not the active hold, so a newer hold superseded
+		// it — and startHold released t and its modifiers then. Cancelling
+		// here would kill the newer hold's repeat and safety timeout while
+		// its key stays down, and releasing t's modifiers could lift one the
+		// newer hold still holds. Two hold keybinds overlapping (down A,
+		// down B, up A) is exactly this order.
+		h.mu.Unlock()
+		return
 	}
+	h.activeHold = nil
 	h.mu.Unlock()
 
 	if hold != nil {
@@ -223,7 +234,7 @@ func (h *Host) runRepeatLoop(ctx context.Context, id uint64, t keyTarget) {
 	ticker := time.NewTicker(h.repeatCfg.RepeatInterval)
 	defer ticker.Stop()
 
-	deadline := time.After(safetyTimeout)
+	deadline := time.After(h.safetyTimeout)
 	for {
 		select {
 		case <-ctx.Done():

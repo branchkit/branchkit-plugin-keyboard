@@ -25,6 +25,11 @@ type Host struct {
 	holdSeq       atomic.Uint64
 	repeatCfg     repeatConfig
 	heldModifiers []string
+	// rawKey sends one raw key event (press, release, click) and
+	// safetyTimeout bounds how long a repeating hold may run without its
+	// stop. Seams so the hold machinery can be driven without a platform.
+	rawKey        func(code int, direction string)
+	safetyTimeout time.Duration
 
 	// registerKeybinds pushes a rebuilt snapshot to the platform. A field so
 	// handler tests can assert the registration happens without a platform.
@@ -57,5 +62,7 @@ func newHost(p *branchkit.Plugin) *Host {
 	h.parseKeyEvent = h.parseKeyEventDefault
 	h.holdPause = h.holdPauseDefault
 	h.releasePause = h.releasePauseDefault
+	h.rawKey = h.rawKeyDefault
+	h.safetyTimeout = defaultSafetyTimeout
 	return h
 }
