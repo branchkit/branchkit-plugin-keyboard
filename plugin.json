@@ -4,7 +4,15 @@
   "name": "Keyboard",
   "icon": "keyboard",
   "requires": {
-    "privileges": ["input"]
+    "privileges": ["input"],
+    "capabilities": {
+      "uses": [
+        "native.key_repeat_delay",
+        "native.key_repeat_rate",
+        "native.keyboard_layout",
+        "native.warp_cursor"
+      ]
+    }
   },
   "version": "1.0.0",
   "min_api_version": "0.2.0",
