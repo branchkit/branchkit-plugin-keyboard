@@ -112,3 +112,32 @@ func TestBuildLayoutCharacters_EmptyInputs(t *testing.T) {
 		t.Errorf("both nil: expected 0 entries, got %d", len(chars))
 	}
 }
+
+// isPrintable gates the "Your Keyboard" cell of the keys table: the layout's
+// character is shown only if it is visible, otherwise "–". The cell is an HTML
+// text node, where whitespace collapses to nothing, so a whitespace-only
+// character (the space bar's " ") is as invisible as "" and must read "–".
+func TestIsPrintable(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want bool
+	}{
+		{"", false},
+		{" ", false}, // the space bar's character: an empty-looking cell
+		{"   ", false},
+		{"\u00a0", false}, // no-break space is whitespace too
+		{"\t", false},
+		{"\r", false}, // return's character
+		{" a", true},  // visible content, whitespace alongside is fine
+		{"a", true},
+		{"é", true},
+		{"a\nb", false},
+		{"\x7f", false},
+		{"\x1b[", false},
+		{"\u009b", false}, // C1 control (CSI): a control character, not text
+	} {
+		if got := isPrintable(c.in); got != c.want {
+			t.Errorf("isPrintable(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}

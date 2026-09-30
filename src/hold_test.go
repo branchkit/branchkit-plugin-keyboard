@@ -294,22 +294,3 @@ func TestButtonOrLeft(t *testing.T) {
 		}
 	}
 }
-
-// isPrintable's doc also promises false for whitespace-only strings; the code
-// accepts " " (0x20). That disagreement is left to the owner, so a lone space
-// is deliberately not pinned here.
-func TestIsPrintable(t *testing.T) {
-	for in, want := range map[string]bool{
-		"":      false,
-		"a":     true,
-		"é":     true,
-		"\t":    false,
-		"a\nb":  false,
-		"\x7f":  false,
-		"\x1b[": false,
-	} {
-		if got := isPrintable(in); got != want {
-			t.Errorf("isPrintable(%q) = %v, want %v", in, got, want)
-		}
-	}
-}

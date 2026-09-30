@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
@@ -43,18 +44,23 @@ func (h *Host) localKeyNames() []keyNameEntry {
 	return entries
 }
 
-// isPrintable returns true if the string contains only visible, printable characters.
-// Returns false for control characters, whitespace-only strings, and empty strings.
+// isPrintable reports whether a layout character can be shown as itself in
+// the keys table's "Your Keyboard" cell; renderKeysSettings shows "–"
+// otherwise. False for an empty string, any control character (C0, DEL, C1),
+// and a whitespace-only string: the cell is an HTML text node, where the
+// space bar's " " collapses to an empty-looking cell just as "" would.
+// Whitespace beside visible characters is fine.
 func isPrintable(s string) bool {
-	if s == "" {
-		return false
-	}
+	visible := false
 	for _, r := range s {
-		if r < 0x20 || r == 0x7f {
+		if unicode.IsControl(r) {
 			return false
 		}
+		if !unicode.IsSpace(r) {
+			visible = true
+		}
 	}
-	return true
+	return visible
 }
 
 func (h *Host) renderKeysSettings(search string) (string, error) {
@@ -82,7 +88,7 @@ func (h *Host) renderKeysSettings(search string) (string, error) {
 		}
 
 		character := layoutMappings[fmt.Sprintf("%d", k.Keycode)]
-		if character == "" || !isPrintable(character) {
+		if !isPrintable(character) {
 			character = "–"
 		}
 
