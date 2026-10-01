@@ -45,24 +45,21 @@ func TestBindingJSONRoundTrip(t *testing.T) {
 	}
 }
 
-// Params flow from the per-plugin map through buildRegistry into the
-// snapshot the actuator caches.
-func TestBuildRegistryCarriesParams(t *testing.T) {
-	h := newTestHost()
-	origLoad := h.loadUserKeybindOverrides
-	h.loadUserKeybindOverrides = func() map[string]Binding { return map[string]Binding{} }
-	defer func() { h.loadUserKeybindOverrides = origLoad }()
-
-	reg := h.buildRegistry(map[string]map[string]Binding{
-		"scripts": {"opt+n": {Action: "scripts.run", Params: json.RawMessage(`{"script":"notes.lua"}`)}},
-	})
-	snap := reg.toSnapshot()
-	if len(snap.Entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(snap.Entries))
+// Params ride from the platform's published table into the entry the tab
+// shows and Bind/Remap copy.
+func TestActiveTableCarriesParams(t *testing.T) {
+	var table activeTable
+	if err := json.Unmarshal([]byte(`{"entries":[{"trigger":"opt+n","action":"scripts.run",
+		"params":{"script":"notes.lua"},"plugin_id":"scripts"}],"shadowed":[]}`), &table); err != nil {
+		t.Fatal(err)
 	}
-	e := snap.Entries[0]
-	if e.Action != "scripts.run" || string(e.Params) != `{"script":"notes.lua"}` {
-		t.Fatalf("params lost: %+v", e)
+	reg := registryFromActive(table)
+	b := findActionForCombo(&reg, "opt+n")
+	if b.Action != "scripts.run" || string(b.Params) != `{"script":"notes.lua"}` {
+		t.Fatalf("params lost: %+v", b)
+	}
+	if e := reg.Entries["opt+n"]; e.Source.IsUser || e.Source.PluginID != "scripts" {
+		t.Fatalf("source must name the contributing plugin: %+v", e.Source)
 	}
 }
 
@@ -99,7 +96,7 @@ func stubParseKeyEvent(h *Host, t *testing.T, out ParsedKeyEvent) {
 
 func TestBindACommandFlow(t *testing.T) {
 	h := newTestHost()
-	got := captureRegistrations(h, t)
+	f := withFakePlatform(h, t, nil)
 
 	origFetch := h.fetchBindableCommands
 	h.fetchBindableCommands = func() ([]bindCandidate, error) {
@@ -111,10 +108,6 @@ func TestBindACommandFlow(t *testing.T) {
 		}}, nil
 	}
 	t.Cleanup(func() { h.fetchBindableCommands = origFetch })
-
-	h.mu.Lock()
-	h.state = newPluginState()
-	h.mu.Unlock()
 
 	if err := h.handleOpenBindPicker(nil); err != nil {
 		t.Fatalf("open: %v", err)
@@ -129,8 +122,8 @@ func TestBindACommandFlow(t *testing.T) {
 		t.Fatalf("keydown: %v", err)
 	}
 
-	if len(*got) != 1 {
-		t.Fatalf("bind must register exactly once, got %d", len(*got))
+	if f.saves != 1 {
+		t.Fatalf("bind must save exactly once, got %d", f.saves)
 	}
 	b := findActionForCombo(&h.state.Registry, "ctrl+opt+z")
 	if b.Action != "scripts.run" {
@@ -150,23 +143,20 @@ func TestBindACommandFlow(t *testing.T) {
 // A combo without modifiers is refused with a one-shot error and no write.
 func TestBindKeydownRequiresModifiers(t *testing.T) {
 	h := newTestHost()
-	got := captureRegistrations(h, t)
+	f := withFakePlatform(h, t, nil)
 	origFetch := h.fetchBindableCommands
 	h.fetchBindableCommands = func() ([]bindCandidate, error) {
 		return []bindCandidate{{ID: "x", Pattern: "x", Owner: "p", B: Binding{Action: "p.x"}}}, nil
 	}
 	t.Cleanup(func() { h.fetchBindableCommands = origFetch })
 
-	h.mu.Lock()
-	h.state = newPluginState()
-	h.mu.Unlock()
 	h.handleOpenBindPicker(nil)
 	h.handleChooseBind(&ChooseBindRequest{ID: "x"})
 	stubParseKeyEvent(h, t, ParsedKeyEvent{Combo: "z", KeyName: "z"})
 	h.handleBindKeydown(&BindKeydownRequest{DOMKeyEvent: DOMKeyEvent{Code: "KeyZ", Key: "z"}})
 
-	if len(*got) != 0 {
-		t.Fatal("a refused bind must not register")
+	if f.saves != 0 {
+		t.Fatal("a refused bind must not save")
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -178,53 +168,22 @@ func TestBindKeydownRequiresModifiers(t *testing.T) {
 	}
 }
 
-// Two plugins asking for one chord is a situation the platform invites —
-// `keybinds` is writers: anyone_who_declares — so the loser has to be
-// reported rather than dropped. Before this, the collision was a bare
-// `continue`: the binding simply was not there, with no error, no log line
-// and nothing in the settings tab.
-func TestCollidingKeybindIsRecordedNotDropped(t *testing.T) {
-	h := newTestHost()
-	origLoad := h.loadUserKeybindOverrides
-	h.loadUserKeybindOverrides = func() map[string]Binding { return map[string]Binding{} }
-	defer func() { h.loadUserKeybindOverrides = origLoad }()
-
-	reg := h.buildRegistry(map[string]map[string]Binding{
-		"voice":    {"alt+shift+h": {Action: "voice.help_toggle"}},
-		"snippets": {"alt+shift+h": {Action: "snippets.type"}},
-	})
-
-	if len(reg.Entries) != 1 {
-		t.Fatalf("one chord is one binding, got %d entries", len(reg.Entries))
+// A binding that lost its chord to another plugin is shown, naming both
+// sides — the platform reports it in the published table, and the tab is
+// where a user (or the losing plugin's author) finds out. Which side wins is
+// the platform's rule, tested there.
+func TestShadowedBindingsAreShown(t *testing.T) {
+	var table activeTable
+	if err := json.Unmarshal([]byte(`{"entries":[{"trigger":"opt+shift+h","action":"snippets.type","plugin_id":"snippets"}],
+		"shadowed":[{"trigger":"opt+shift+h","action":"voice.help_toggle","plugin_id":"voice","won_by":"snippets"}]}`), &table); err != nil {
+		t.Fatal(err)
 	}
-	// Alphabetical: snippets < voice, so snippets holds it.
-	for _, e := range reg.Entries {
-		if e.Source.PluginID != "snippets" {
-			t.Fatalf("first plugin alphabetically should win, got %q", e.Source.PluginID)
-		}
-	}
-
-	if len(reg.Shadowed) != 1 {
-		t.Fatalf("the losing binding must be recorded, got %d shadowed", len(reg.Shadowed))
+	reg := registryFromActive(table)
+	if len(reg.Entries) != 1 || len(reg.Shadowed) != 1 {
+		t.Fatalf("want 1 entry and 1 shadowed, got %d and %d", len(reg.Entries), len(reg.Shadowed))
 	}
 	s := reg.Shadowed[0]
 	if s.PluginID != "voice" || s.WonBy != "snippets" || s.Action != "voice.help_toggle" {
 		t.Fatalf("shadowed entry should name both sides and the action: %+v", s)
-	}
-}
-
-// A plugin binding two different chords is not a collision.
-func TestDistinctKeybindsAreNotShadowed(t *testing.T) {
-	h := newTestHost()
-	origLoad := h.loadUserKeybindOverrides
-	h.loadUserKeybindOverrides = func() map[string]Binding { return map[string]Binding{} }
-	defer func() { h.loadUserKeybindOverrides = origLoad }()
-
-	reg := h.buildRegistry(map[string]map[string]Binding{
-		"voice":    {"alt+shift+h": {Action: "voice.help_toggle"}},
-		"snippets": {"alt+shift+s": {Action: "snippets.type"}},
-	})
-	if len(reg.Entries) != 2 || len(reg.Shadowed) != 0 {
-		t.Fatalf("expected 2 entries and 0 shadowed, got %d and %d", len(reg.Entries), len(reg.Shadowed))
 	}
 }

@@ -18,7 +18,6 @@ var keyboardCSS string
 // --- Plugin state ---
 
 type PluginState struct {
-	KeybindsByPlugin map[string]map[string]Binding
 	// Bind-a-command flow: picker contents (non-nil = open), the candidate
 	// awaiting its combo, and a one-shot error shown on next render.
 	BindPicker     []bindCandidate
@@ -37,23 +36,26 @@ type PluginState struct {
 
 func newPluginState() *PluginState {
 	return &PluginState{
-		KeybindsByPlugin: make(map[string]map[string]Binding),
-		Registry:         newRegistry(),
+		Registry: newRegistry(),
 	}
 }
 
-func (ps *PluginState) rebuild(h *Host) RegistrySnapshot {
-	ps.Registry = h.buildRegistry(ps.KeybindsByPlugin)
-	// The Actions page learns the live bindings from the same rebuild the
-	// registry does — declared once, here, not in each caller.
+// rebuild re-reads the hotkey table the platform derived. Every path that
+// changes a binding writes the platform's collections, and the platform
+// re-derives inside that write, so a read after it sees the change.
+func (ps *PluginState) rebuild(h *Host) {
+	t, err := h.fetchActive()
+	if err != nil {
+		branchkit.Logf("keyboard", "reading %s: %v", bindingsActiveCollection, err)
+		return
+	}
+	ps.Registry = registryFromActive(t)
+	// The Actions page learns the live bindings from the same read the
+	// Keybinds tab does — declared once, here, not in each caller.
 	h.syncTriggers(ps.Registry)
-	return ps.Registry.toSnapshot()
 }
 
 // --- Request types ---
-
-type BuildRegistryRequest struct {
-}
 
 type StartRemapRequest struct {
 	Combo string `json:"combo"`
@@ -81,59 +83,7 @@ type OkResponse struct {
 	OK bool `json:"ok"`
 }
 
-// fetchKeybindsByPlugin reads the keybinds collection from the actuator
-// and regroups the per-record shape into a per-plugin map.
-//
-// Phase 3.3: keybinds migrated from a Keyed-merge contributions map
-// (`{plugin_id: {combo: action}}`) to per-record state.put with
-// namespaced ids (each record `{id, plugin_id, combo, action}`). This
-// helper restores the per-plugin map the rest of the plugin's logic
-// (buildRegistry, applyRemap, etc.) was already coded against.
-func (h *Host) fetchKeybindsByPlugin() (map[string]map[string]Binding, error) {
-	var storeResp struct {
-		Data []struct {
-			PluginID string          `json:"plugin_id"`
-			Combo    string          `json:"combo"`
-			Action   string          `json:"action"`
-			Params   json.RawMessage `json:"params"`
-		} `json:"data"`
-	}
-	got, err := h.plugin.CollectionGet(branchkit.CollectionGetRequest{Name: "keybinds"})
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(got.Data, &storeResp.Data); err != nil {
-		return nil, err
-	}
-	out := make(map[string]map[string]Binding)
-	for _, r := range storeResp.Data {
-		if r.PluginID == "" || r.Combo == "" {
-			continue
-		}
-		if out[r.PluginID] == nil {
-			out[r.PluginID] = make(map[string]Binding)
-		}
-		out[r.PluginID][r.Combo] = Binding{Action: r.Action, Params: r.Params}
-	}
-	return out, nil
-}
-
 // --- RPC handlers ---
-
-func (h *Host) handleBuildRegistry(req *BuildRegistryRequest) (any, error) {
-	keybindsByPlugin, err := h.fetchKeybindsByPlugin()
-	if err != nil {
-		branchkit.Logf("keyboard", "failed to read store: %v", err)
-		keybindsByPlugin = make(map[string]map[string]Binding)
-	}
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.state.KeybindsByPlugin = keybindsByPlugin
-	snapshot := h.state.rebuild(h)
-
-	return snapshot, nil
-}
 
 func (h *Host) renderKeybindsTab(req *branchkit.RenderSettingsRequest) (string, error) {
 	h.mu.Lock()
@@ -156,16 +106,13 @@ func (h *Host) handleStartRemap(req *StartRemapRequest) error {
 
 func (h *Host) handleRemap(req *RemapRequest) (any, error) {
 	h.mu.Lock()
-	result := h.applyRemap(req.OldCombo, req.NewCombo, req.IsHold)
+	h.applyRemap(req.OldCombo, req.NewCombo, req.IsHold)
 	h.mu.Unlock()
-	// Outside the lock: registration is an RPC, and holding mu across a
-	// blocking call would stall every other handler on a slow actuator.
-	h.registerKeybinds(result)
-	return result, nil
+	return OkResponse{OK: true}, nil
 }
 
 // applyRemap performs the core remap logic. Caller must hold mu.Lock().
-func (h *Host) applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapshot {
+func (h *Host) applyRemap(oldCombo, newCombo string, isHold bool) {
 	overrides := h.loadUserKeybindOverrides()
 
 	if isHold {
@@ -193,10 +140,9 @@ func (h *Host) applyRemap(oldCombo, newCombo string, isHold bool) RegistrySnapsh
 
 	h.saveUserKeybindOverrides(overrides)
 	h.state.RemappingCombo = ""
-	snapshot := h.state.rebuild(h)
+	h.state.rebuild(h)
 
 	h.resumeKeybinds()
-	return snapshot
 }
 
 func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) error {
@@ -232,9 +178,8 @@ func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) error {
 
 	// Valid combo → apply remap
 	h.mu.Lock()
-	result := h.applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
+	h.applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
 	h.mu.Unlock()
-	h.registerKeybinds(result)
 	return nil
 }
 
@@ -266,28 +211,26 @@ func (h *Host) handleReset(req *ResetRequest) error {
 			if !v.IsZero() {
 				continue
 			}
-			for _, pluginBinds := range h.state.KeybindsByPlugin {
-				if pluginBind, ok := pluginBinds[k]; ok && pluginBind.Action == action.Action {
-					delete(overrides, k)
-				}
+			// An unbind left by a remap of this same action: the original
+			// plugin binding is what Reset is restoring, so lift it too.
+			if h.pluginBinds(k, action.Action) {
+				delete(overrides, k)
 			}
 		}
 	}
 
 	h.saveUserKeybindOverrides(overrides)
-	snapshot := h.state.rebuild(h)
+	h.state.rebuild(h)
 	h.mu.Unlock()
-	h.registerKeybinds(snapshot)
 
 	return nil
 }
 
 func (h *Host) handleResetAll(_ *struct{}) error {
 	h.mu.Lock()
-	h.saveUserKeybindOverrides(nil)
-	snapshot := h.state.rebuild(h)
+	h.saveUserKeybindOverrides(map[string]Binding{})
+	h.state.rebuild(h)
 	h.mu.Unlock()
-	h.registerKeybinds(snapshot)
 
 	return nil
 }
@@ -370,25 +313,6 @@ func (h *Host) releasePauseDefault() {
 	if _, _, err := h.plugin.RetractEffect("suppress_keybinds"); err != nil {
 		branchkit.Logf("keyboard", "suppress_keybinds retract failed: %v", err)
 	}
-}
-
-// registerKeybinds pushes a rebuilt snapshot to the platform, which forwards
-// it to the shell's KeybindCapture as a `keybind:register` control message.
-//
-// Every path that CHANGES the effective bindings must call this, and until
-// 2026-08-14 the override paths didn't: remap and reset saved user overrides
-// to `plugin.keyboard.overrides` and rebuilt the LOCAL registry, but the only
-// re-registration trigger was the collection.updated subscription for the
-// base `keybinds` collection — overrides hit its `default: return`. So a
-// remap looked successful in Settings while the shell kept firing the OLD
-// combos until the next plugin restart. A test seam (var) so handler tests
-// can assert the registration actually happens.
-func (h *Host) registerKeybindsDefault(snapshot RegistrySnapshot) {
-	if _, err := h.plugin.KeybindsRegister(branchkit.KeybindsRegisterRequest{Snapshot: snapshot}); err != nil {
-		branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
-		return
-	}
-	branchkit.Logf("keyboard", "re-registered keybinds after override change")
 }
 
 func (h *Host) handleStartCapture(_ *struct{}) (any, error) {
@@ -644,21 +568,13 @@ func main() {
 	loadAndPushKeys(h.plugin) // depends on layout_characters for enrichment
 	loadAndPushModifiers(h.plugin)
 
-	// Initial keybind registration — read store, build snapshot, register with platform
-	if kbp, err := h.fetchKeybindsByPlugin(); err != nil {
-		branchkit.Logf("keyboard", "failed to read keybinds store: %v", err)
-	} else {
-		h.mu.Lock()
-		h.state.KeybindsByPlugin = kbp
-		snapshot := h.state.rebuild(h)
-		h.mu.Unlock()
-
-		if _, err := h.plugin.KeybindsRegister(branchkit.KeybindsRegisterRequest{Snapshot: snapshot}); err != nil {
-			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
-		} else {
-			branchkit.Logf("keyboard", "Initial keybind registration complete")
-		}
-	}
+	// The platform derives and registers the hotkey table itself; this
+	// plugin carries old saved edits over once, then reads the table to
+	// show it.
+	h.migrateLegacyOverrides()
+	h.mu.Lock()
+	h.state.rebuild(h)
+	h.mu.Unlock()
 
 	// Subscribe to events (actuator→plugin notifications)
 	h.plugin.On("_platform.collection.updated", func(params json.RawMessage) {
@@ -671,28 +587,11 @@ func main() {
 		switch payload.Collection {
 		case keyNamesCollection:
 			h.refreshKeycodesFromCollection()
-			return
-		case "keybinds":
-			// handled below
-		default:
-			return
+		case bindingsActiveCollection:
+			h.mu.Lock()
+			h.state.rebuild(h)
+			h.mu.Unlock()
 		}
-		// Re-fetch keybinds from actuator
-		kbp, err := h.fetchKeybindsByPlugin()
-		if err != nil {
-			branchkit.Logf("keyboard", "store update: failed to read keybinds: %v", err)
-			return
-		}
-		h.mu.Lock()
-		h.state.KeybindsByPlugin = kbp
-		snapshot := h.state.rebuild(h)
-		h.mu.Unlock()
-
-		// Register keybinds with the platform (replaces content_type side effect)
-		if _, err := h.plugin.KeybindsRegister(branchkit.KeybindsRegisterRequest{Snapshot: snapshot}); err != nil {
-			branchkit.Logf("keyboard", "keybinds.register failed: %v", err)
-		}
-		branchkit.Logf("keyboard", "rebuilt keybinds from store update")
 	})
 
 	h.plugin.On("_platform.keyboard.layout_changed", func(params json.RawMessage) {
@@ -702,7 +601,6 @@ func main() {
 	})
 
 	// Register handlers (actuator→plugin requests)
-	branchkit.HandleTyped(h.plugin, "build_registry", h.handleBuildRegistry)
 	h.plugin.SettingsCSS(keyboardCSS)
 	h.plugin.SettingsTab("keybinds", h.renderKeybindsTab)
 	h.plugin.SettingsTab("keys", h.renderKeysTab)

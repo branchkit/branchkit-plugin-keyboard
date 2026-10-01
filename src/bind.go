@@ -146,10 +146,8 @@ func (h *Host) handleBindKeydown(req *BindKeydownRequest) error {
 	h.saveUserKeybindOverrides(overrides)
 	h.state.PendingBind = nil
 	h.state.BindPicker = nil
-	snapshot := h.state.rebuild(h)
+	h.state.rebuild(h)
 	h.mu.Unlock()
-	// Outside the lock: registration is an RPC (same rule as handleRemap).
-	h.registerKeybinds(snapshot)
 	h.resumeKeybinds()
 	return nil
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"sort"
 	"strings"
 
 	"github.com/branchkit/plugin-sdk-go"
@@ -28,6 +27,10 @@ const (
 	KeyEventPress KeyEvent = iota
 	KeyEventDown
 	KeyEventUp
+	// Toggle and abort are the platform's other two event words: a toggle
+	// alternates start/stop on each press, an abort abandons a held action.
+	KeyEventToggle
+	KeyEventAbort
 )
 
 func (e KeyEvent) String() string {
@@ -36,6 +39,10 @@ func (e KeyEvent) String() string {
 		return "down"
 	case KeyEventUp:
 		return "up"
+	case KeyEventToggle:
+		return "toggle"
+	case KeyEventAbort:
+		return "abort"
 	default:
 		return "press"
 	}
@@ -98,6 +105,12 @@ func parseCombo(s string) (KeyCombo, bool) {
 		case "press":
 			comboPart = strings.Join(words[:len(words)-1], " ")
 			event = KeyEventPress
+		case "toggle":
+			comboPart = strings.Join(words[:len(words)-1], " ")
+			event = KeyEventToggle
+		case "abort":
+			comboPart = strings.Join(words[:len(words)-1], " ")
+			event = KeyEventAbort
 		}
 	}
 
@@ -138,24 +151,6 @@ func comboKey(c KeyCombo) string {
 	return c.String()
 }
 
-// modifierKeyID returns the base combo without event suffix (for listen_up).
-func modifierKeyID(c KeyCombo) string {
-	var parts []string
-	if c.Modifiers.Alt {
-		parts = append(parts, "alt+")
-	}
-	if c.Modifiers.Shift {
-		parts = append(parts, "shift+")
-	}
-	if c.Modifiers.Ctrl {
-		parts = append(parts, "ctrl+")
-	}
-	if c.Modifiers.Cmd {
-		parts = append(parts, "cmd+")
-	}
-	return strings.Join(parts, "") + c.Key
-}
-
 // comboBaseString returns the combo without event type (for display).
 func comboBaseString(c KeyCombo) string {
 	var parts []string
@@ -176,6 +171,14 @@ func comboBaseString(c KeyCombo) string {
 }
 
 // --- Registry ---
+//
+// The platform derives the hotkey table and publishes it as
+// `_platform.bindings.active`; this plugin reads it to show and edit. It used
+// to build the table itself and push it with `keybinds.register`, which let
+// any plugin replace every hotkey on the machine, and meant an edit never
+// reached the shell while this plugin was stopped. The rules did not change
+// in the move: plugin bindings by plugin id, first wins; the user's edits on
+// top; a binding that lost its combo kept and shown.
 
 type KeybindSource struct {
 	IsUser   bool
@@ -199,10 +202,10 @@ type KeybindEntry struct {
 // ShadowedBind is a plugin binding that lost its combo to another plugin.
 //
 // Kept rather than discarded. Two plugins asking for one chord is a real
-// situation the platform invites — `keybinds` is `writers:
-// anyone_who_declares` — and the loser is a declaration the author wrote
-// that now does nothing. Silence there is the failure: the author sees no
-// error, the user sees no clash, and the binding is simply absent.
+// situation the platform invites — any plugin may contribute bindings — and
+// the loser is a declaration the author wrote that now does nothing. Silence
+// there is the failure: the author sees no error, the user sees no clash,
+// and the binding is simply absent.
 type ShadowedBind struct {
 	Combo    KeyCombo
 	Action   string
@@ -211,17 +214,15 @@ type ShadowedBind struct {
 }
 
 type InternalRegistry struct {
-	Entries  map[string]KeybindEntry // keyed by comboKey
-	ListenUp map[string]bool
-	// Plugin bindings that collided with an earlier one. Never registered
-	// with the shell — they are reported, not applied.
+	Entries map[string]KeybindEntry // keyed by comboKey
+	// Plugin bindings that collided with an earlier one. The platform never
+	// registers them — they are reported, not applied.
 	Shadowed []ShadowedBind
 }
 
 func newRegistry() InternalRegistry {
 	return InternalRegistry{
-		Entries:  make(map[string]KeybindEntry),
-		ListenUp: make(map[string]bool),
+		Entries: make(map[string]KeybindEntry),
 	}
 }
 
@@ -239,32 +240,118 @@ func (r *InternalRegistry) resolve(c KeyCombo) (KeybindEntry, bool) {
 	return KeybindEntry{}, false
 }
 
-// --- JSON interchange types ---
+// activeTable is the one record of `_platform.bindings.active`.
+type activeTable struct {
+	Entries []struct {
+		Trigger  string          `json:"trigger"`
+		Action   string          `json:"action"`
+		Params   json.RawMessage `json:"params,omitempty"`
+		ByUser   bool            `json:"by_user"`   // the user's edit
+		PluginID string          `json:"plugin_id"` // else the contributing plugin
+	} `json:"entries"`
+	Shadowed []struct {
+		Trigger  string `json:"trigger"`
+		Action   string `json:"action"`
+		PluginID string `json:"plugin_id"`
+		WonBy    string `json:"won_by"`
+	} `json:"shadowed"`
+}
 
-// Aliases, not mirrors — the same reasoning keycodes.go gives for
-// ParsedKeyEvent: "a hand-written mirror of a platform shape zero-fills
-// silently when the platform renames a field; this breaks the build
-// instead." These two WERE mirrors, byte-identical to the generated
-// shapes, until 2026-09-20. keybinds.register takes the generated type,
-// so aliasing also lets the call site use the wrapper.
-type RegistrySnapshot = branchkit.RegistrySnapshot
-type RegistryEntry = branchkit.RegistryEntry
+const bindingsActiveCollection = "_platform.bindings.active"
 
-func (r *InternalRegistry) toSnapshot() RegistrySnapshot {
-	entries := make([]RegistryEntry, 0, len(r.Entries))
-	for _, e := range r.Entries {
-		entries = append(entries, RegistryEntry{
-			Combo:  e.Combo.String(),
+// registryFromActive turns the platform's published table into the shape the
+// Keybinds tab renders. A trigger this plugin cannot parse is skipped: the
+// platform parsed it to register it, so a miss here is display-only.
+func registryFromActive(t activeTable) InternalRegistry {
+	reg := newRegistry()
+	for _, e := range t.Entries {
+		combo, ok := parseCombo(e.Trigger)
+		if !ok {
+			branchkit.Logf("keyboard", "active binding %q: cannot display this trigger", e.Trigger)
+			continue
+		}
+		reg.Entries[comboKey(combo)] = KeybindEntry{
+			Combo:  combo,
 			Action: e.Action,
-			Source: e.Source.String(),
-			Params: e.Params,
+			Params: nonNullParams(e.Params),
+			Source: KeybindSource{IsUser: e.ByUser, PluginID: e.PluginID},
+		}
+	}
+	for _, s := range t.Shadowed {
+		combo, ok := parseCombo(s.Trigger)
+		if !ok {
+			continue
+		}
+		reg.Shadowed = append(reg.Shadowed, ShadowedBind{
+			Combo: combo, Action: s.Action, PluginID: s.PluginID, WonBy: s.WonBy,
 		})
 	}
-	listenUp := make([]string, 0, len(r.ListenUp))
-	for k := range r.ListenUp {
-		listenUp = append(listenUp, k)
+	return reg
+}
+
+func nonNullParams(p json.RawMessage) json.RawMessage {
+	if len(p) == 0 || string(p) == "null" {
+		return nil
 	}
-	return RegistrySnapshot{Entries: entries, ListenUp: listenUp}
+	return p
+}
+
+func (h *Host) fetchActiveDefault() (activeTable, error) {
+	var t activeTable
+	rec, err := h.plugin.Get(bindingsActiveCollection, "singleton")
+	if err != nil || rec == nil {
+		return t, err
+	}
+	err = json.Unmarshal(rec.Payload, &t)
+	return t, err
+}
+
+// contributedBinding is one plugin's binding as `_platform.bindings` holds it.
+type contributedBinding struct {
+	Trigger string
+	Binding
+}
+
+func (h *Host) fetchContributedDefault() ([]contributedBinding, error) {
+	recs, err := h.plugin.ListAll(bindingsCollection)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]contributedBinding, 0, len(recs))
+	for _, r := range recs {
+		var p struct {
+			Trigger string          `json:"trigger"`
+			Action  string          `json:"action"`
+			Params  json.RawMessage `json:"params,omitempty"`
+		}
+		if json.Unmarshal(r.Payload, &p) != nil {
+			continue
+		}
+		out = append(out, contributedBinding{Trigger: p.Trigger, Binding: Binding{Action: p.Action, Params: nonNullParams(p.Params)}})
+	}
+	return out, nil
+}
+
+const bindingsCollection = "_platform.bindings"
+
+// pluginBinds reports whether any plugin contributed a binding of action on
+// trigger — shadowed ones included, as the per-plugin lookup it replaces did.
+func (h *Host) pluginBinds(trigger, action string) bool {
+	want, ok := parseCombo(trigger)
+	if !ok {
+		return false
+	}
+	contributed, err := h.fetchContributed()
+	if err != nil {
+		branchkit.Logf("keyboard", "reading %s: %v", bindingsCollection, err)
+		return false
+	}
+	for _, c := range contributed {
+		if got, ok := parseCombo(c.Trigger); ok && comboKey(got) == comboKey(want) && c.Action == action {
+			return true
+		}
+	}
+	return false
 }
 
 // --- User overrides ---
@@ -277,82 +364,4 @@ func (h *Host) loadUserKeybindOverridesDefault() map[string]Binding {
 
 func (h *Host) saveUserKeybindOverridesDefault(overrides map[string]Binding) {
 	h.saveOverridesToCollection(overrides)
-}
-
-// --- Registry build ---
-
-func (h *Host) buildRegistry(
-	keybindsByPlugin map[string]map[string]Binding,
-) InternalRegistry {
-	reg := newRegistry()
-
-	// 1. Collect from plugins (sorted alphabetically, first wins)
-	pluginIDs := make([]string, 0, len(keybindsByPlugin))
-	for id := range keybindsByPlugin {
-		pluginIDs = append(pluginIDs, id)
-	}
-	sort.Strings(pluginIDs)
-
-	for _, pluginID := range pluginIDs {
-		keybinds := keybindsByPlugin[pluginID]
-		for comboStr, b := range keybinds {
-			combo, ok := parseCombo(comboStr)
-			if !ok {
-				continue
-			}
-			key := comboKey(combo)
-			if existing, exists := reg.Entries[key]; exists {
-				// First plugin alphabetically wins. That is deterministic,
-				// which matters more than it sounds — but it is arbitrary,
-				// so the one that lost has to be visible somewhere rather
-				// than vanishing. Within this loop every existing entry is
-				// plugin-sourced; user overrides are applied in step 2.
-				reg.Shadowed = append(reg.Shadowed, ShadowedBind{
-					Combo:    combo,
-					Action:   b.Action,
-					PluginID: pluginID,
-					WonBy:    existing.Source.PluginID,
-				})
-				branchkit.Logf("keyboard",
-					"keybind %s: %s wanted %q but %s holds it — first plugin alphabetically wins; rebind one of them in Settings",
-					combo.String(), pluginID, b.Action, existing.Source.PluginID)
-				continue
-			}
-			reg.Entries[key] = KeybindEntry{
-				Combo:  combo,
-				Action: b.Action,
-				Params: b.Params,
-				Source: KeybindSource{PluginID: pluginID},
-			}
-		}
-	}
-
-	// 2. User TOML overrides (always win)
-	userOverrides := h.loadUserKeybindOverrides()
-	for comboStr, b := range userOverrides {
-		combo, ok := parseCombo(comboStr)
-		if !ok {
-			continue
-		}
-		key := comboKey(combo)
-		if b.IsZero() {
-			delete(reg.Entries, key)
-		} else {
-			reg.Entries[key] = KeybindEntry{
-				Combo:  combo,
-				Action: b.Action,
-				Params: b.Params,
-				Source: KeybindSource{IsUser: true},
-			}
-		}
-	}
-
-	// 3. Build listen_up set
-	for _, e := range reg.Entries {
-		if e.Combo.Event == KeyEventUp {
-			reg.ListenUp[modifierKeyID(e.Combo)] = true
-		}
-	}
-
-	return reg
 }

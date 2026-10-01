@@ -1,6 +1,6 @@
 # BranchKit Keyboard
 
-Global hotkey capture, the keybind registry, and input simulation for
+Input simulation, spoken key names, and the Keybinds screen for
 [BranchKit](https://branchkit.dev). MIT licensed.
 
 This plugin owns `input.*`. When another plugin dispatches `input.shortcut` or
@@ -14,9 +14,13 @@ anything that needs to press a key, click, scroll, or touch the clipboard.
 `mouse_up`, `clipboard`. The `key*` and `shortcut*` families support `hold` and
 `repeat` modes.
 
-**Collections**: `keybinds` (the registry every plugin's bindings land in,
-`writers: anyone_who_declares`), `keycodes`, `keys`, `modifiers`,
-`layout_characters`, and `plugin.keyboard.overrides`.
+**Collections**: provides `keys`, `modifiers` and `layout_characters`. The
+hotkey table itself is the platform's: plugins contribute hotkeys to
+`_platform.bindings` (manifest `collection_data`, keyed by combo), and the
+platform derives and registers the table on every change. This plugin's
+Keybinds tab shows that table (`_platform.bindings.active`) and saves your
+edits to `_platform.binding_overrides`. `plugin.keyboard.overrides` is the
+old whole-map store of those edits, carried over once at start.
 
 **Settings tabs**: Keybinds and Keys.
 

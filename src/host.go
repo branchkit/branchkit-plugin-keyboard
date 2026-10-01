@@ -31,17 +31,18 @@ type Host struct {
 	rawKey        func(code int, direction string)
 	safetyTimeout time.Duration
 
-	// registerKeybinds pushes a rebuilt snapshot to the platform. A field so
-	// handler tests can assert the registration happens without a platform.
-	registerKeybinds         func(RegistrySnapshot)
+	// fetchActive reads the hotkey table the platform derived. A field so
+	// handler tests can run without a platform.
+	fetchActive              func() (activeTable, error)
+	fetchContributed         func() ([]contributedBinding, error)
 	fetchBindableCommands    func() ([]bindCandidate, error)
 	loadUserKeybindOverrides func() map[string]Binding
 	saveUserKeybindOverrides func(overrides map[string]Binding)
-	// overridesUnreadable is set when reading the overrides record FAILED
-	// (not when it was absent or unparseable). Every remap is load, edit,
-	// save the whole map, so saving after a failed read would replace the
-	// user's saved overrides with just the one edit. Saves refuse while it
-	// is set; the next successful read clears it.
+	// overridesUnreadable is set when reading the overrides FAILED (not
+	// when there were none). Every remap is load, edit, save the whole map,
+	// and a save makes the store equal to the map, so saving after a failed
+	// read would delete the user's saved edits. Saves refuse while it is
+	// set; the next successful read clears it.
 	overridesUnreadable atomic.Bool
 	parseKeyEvent       func(ev DOMKeyEvent) (ParsedKeyEvent, error)
 
@@ -55,7 +56,8 @@ type Host struct {
 
 func newHost(p *branchkit.Plugin) *Host {
 	h := &Host{plugin: p, state: newPluginState()}
-	h.registerKeybinds = h.registerKeybindsDefault
+	h.fetchActive = h.fetchActiveDefault
+	h.fetchContributed = h.fetchContributedDefault
 	h.fetchBindableCommands = h.fetchBindableCommandsDefault
 	h.loadUserKeybindOverrides = h.loadUserKeybindOverridesDefault
 	h.saveUserKeybindOverrides = h.saveUserKeybindOverridesDefault
