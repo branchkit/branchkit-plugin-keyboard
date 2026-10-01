@@ -1,6 +1,6 @@
-# BranchKit Keyboard
+# BranchKit Keyboard & Mouse
 
-Input simulation, spoken key names, and the Keybinds screen for
+Presses keys, clicks and scrolls for you, and names every key, for
 [BranchKit](https://branchkit.dev). MIT licensed.
 
 This plugin owns `input.*`. When another plugin dispatches `input.shortcut` or
@@ -14,21 +14,18 @@ anything that needs to press a key, click, scroll, or touch the clipboard.
 `mouse_up`, `clipboard`. The `key*` and `shortcut*` families support `hold` and
 `repeat` modes.
 
-**Collections**: provides `keys`, `modifiers` and `layout_characters`. The
-hotkey table itself is the platform's: plugins contribute hotkeys to
-`_platform.bindings` (manifest `collection_data`, keyed by combo), and the
-platform derives and registers the table on every change. This plugin's
-Keybinds tab shows that table (`_platform.bindings.active`) and saves your
-edits to `_platform.binding_overrides`. `plugin.keyboard.overrides` is the
-old whole-map store of those edits, carried over once at start.
+**Collections**: provides `keys` and `modifiers` (spoken key and modifier
+names) and `layout_characters` (what each key types on the active layout).
 
-**Settings tabs**: Keybinds and Keys.
+**Settings tabs**: Keys.
 
-**Effects**: consumes `suppress_keybinds` — while you are recording a new
-binding, global hotkeys pause. The platform owns that lifetime, so overlapping
-holders do not stomp each other.
+Global hotkeys are not this plugin's: the platform owns the hotkey table.
+Plugins contribute hotkeys under `collection_data["_platform.bindings"]`, and
+you edit them in Settings → Keybinds. Hotkeys used to be configured here; if
+edits saved that way are still in `plugin.keyboard.overrides`, the plugin
+says so at start.
 
-Requires the `input` privilege. macOS; needs Accessibility permission.
+Requires the `input` privilege; on macOS, the Accessibility permission too.
 
 ## Reading this as an example
 

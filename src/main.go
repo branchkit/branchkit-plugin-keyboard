@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/branchkit/plugin-sdk-go"
 )
@@ -18,14 +17,7 @@ var keyboardCSS string
 // --- Plugin state ---
 
 type PluginState struct {
-	// Bind-a-command flow: picker contents (non-nil = open), the candidate
-	// awaiting its combo, and a one-shot error shown on next render.
-	BindPicker     []bindCandidate
-	PendingBind    *bindCandidate
-	BindError      string
-	Registry       InternalRegistry
-	RemappingCombo string // empty = not remapping
-	KeysError      string // error message shown on next Keys tab render, then cleared
+	KeysError string // error message shown on next Keys tab render, then cleared
 	// Key names: physical key name → keycode, read from the platform's
 	// `_platform.key_names` registry (with user overrides applied).
 	KeyNamesMerged map[string]uint16
@@ -35,346 +27,35 @@ type PluginState struct {
 }
 
 func newPluginState() *PluginState {
-	return &PluginState{
-		Registry: newRegistry(),
-	}
-}
-
-// rebuild re-reads the hotkey table the platform derived. Every path that
-// changes a binding writes the platform's collections, and the platform
-// re-derives inside that write, so a read after it sees the change.
-func (ps *PluginState) rebuild(h *Host) {
-	t, err := h.fetchActive()
-	if err != nil {
-		branchkit.Logf("keyboard", "reading %s: %v", bindingsActiveCollection, err)
-		return
-	}
-	ps.Registry = registryFromActive(t)
-	// The Actions page learns the live bindings from the same read the
-	// Keybinds tab does — declared once, here, not in each caller.
-	h.syncTriggers(ps.Registry)
-}
-
-// --- Request types ---
-
-type StartRemapRequest struct {
-	Combo string `json:"combo"`
-}
-
-type RemapRequest struct {
-	OldCombo string `json:"old_combo"`
-	NewCombo string `json:"new_combo"`
-	IsHold   bool   `json:"is_hold"`
-}
-
-// RemapKeydownRequest accepts raw DOM key event properties + remap context.
-type RemapKeydownRequest struct {
-	DOMKeyEvent
-	OldCombo string `json:"old_combo"`
-	IsHold   bool   `json:"is_hold"`
-}
-
-type ResetRequest struct {
-	ComboKey string `json:"combo_key"`
-	IsHold   bool   `json:"is_hold"`
-}
-
-type OkResponse struct {
-	OK bool `json:"ok"`
+	return &PluginState{}
 }
 
 // --- RPC handlers ---
-
-func (h *Host) renderKeybindsTab(req *branchkit.RenderSettingsRequest) (string, error) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return renderSettings(h.state, strings.ToLower(req.Search))
-}
 
 func (h *Host) renderKeysTab(req *branchkit.RenderSettingsRequest) (string, error) {
 	return h.renderKeysSettings(strings.ToLower(req.Search))
 }
 
-func (h *Host) handleStartRemap(req *StartRemapRequest) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.state.RemappingCombo = req.Combo
-
-	h.pauseKeybinds()
-	return nil
-}
-
-func (h *Host) handleRemap(req *RemapRequest) (any, error) {
-	h.mu.Lock()
-	h.applyRemap(req.OldCombo, req.NewCombo, req.IsHold)
-	h.mu.Unlock()
-	return OkResponse{OK: true}, nil
-}
-
-// applyRemap performs the core remap logic. Caller must hold mu.Lock().
-func (h *Host) applyRemap(oldCombo, newCombo string, isHold bool) {
-	overrides := h.loadUserKeybindOverrides()
-
-	if isHold {
-		downAction := findActionForCombo(&h.state.Registry, oldCombo+" DOWN")
-		upAction := findActionForCombo(&h.state.Registry, oldCombo+" UP")
-		if !downAction.IsZero() {
-			overrides[newCombo+" DOWN"] = downAction
-		}
-		if !upAction.IsZero() {
-			overrides[newCombo+" UP"] = upAction
-		}
-		if oldCombo != newCombo {
-			overrides[oldCombo+" DOWN"] = Binding{}
-			overrides[oldCombo+" UP"] = Binding{}
-		}
-	} else {
-		action := findActionForCombo(&h.state.Registry, oldCombo)
-		if !action.IsZero() {
-			overrides[newCombo] = action
-		}
-		if oldCombo != newCombo {
-			overrides[oldCombo] = Binding{}
-		}
-	}
-
-	h.saveUserKeybindOverrides(overrides)
-	h.state.RemappingCombo = ""
-	h.state.rebuild(h)
-
-	h.resumeKeybinds()
-}
-
-func (h *Host) handleRemapKeydown(req *RemapKeydownRequest) error {
-	// Same platform operation the bind recorder uses — see bind.go for why the
-	// local copy went away.
-	parsed, err := h.parseKeyEvent(req.DOMKeyEvent)
-	if err != nil {
-		branchkit.Logf("keyboard", "remap keydown: parse failed: %v", err)
-		return nil
-	}
-
-	// Escape → cancel remap
-	if parsed.IsEscape {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		h.state.RemappingCombo = ""
-		h.resumeKeybinds()
-		return nil
-	}
-
-	// Bare modifier or unknown key → no-op
-	if parsed.IsBareModifier {
-		return nil
-	}
-
-	// No modifiers → reject
-	if !parsed.HasModifiers {
-		h.mu.Lock()
-		h.state.KeysError = "Remap requires at least one modifier key."
-		h.mu.Unlock()
-		return nil
-	}
-
-	// Valid combo → apply remap
-	h.mu.Lock()
-	h.applyRemap(req.OldCombo, parsed.Combo, req.IsHold)
-	h.mu.Unlock()
-	return nil
-}
-
-func (h *Host) handleCancelRemap(_ *struct{}) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.state.RemappingCombo = ""
-
-	h.resumeKeybinds()
-	return nil
-}
-
-func (h *Host) handleReset(req *ResetRequest) error {
-	h.mu.Lock()
-	overrides := h.loadUserKeybindOverrides()
-
-	var action Binding
-	if req.IsHold {
-		action = findActionForCombo(&h.state.Registry, req.ComboKey+" DOWN")
-		delete(overrides, req.ComboKey+" DOWN")
-		delete(overrides, req.ComboKey+" UP")
-	} else {
-		action = findActionForCombo(&h.state.Registry, req.ComboKey)
-		delete(overrides, req.ComboKey)
-	}
-
-	if !action.IsZero() {
-		for k, v := range overrides {
-			if !v.IsZero() {
-				continue
-			}
-			// An unbind left by a remap of this same action: the original
-			// plugin binding is what Reset is restoring, so lift it too.
-			if h.pluginBinds(k, action.Action) {
-				delete(overrides, k)
-			}
-		}
-	}
-
-	h.saveUserKeybindOverrides(overrides)
-	h.state.rebuild(h)
-	h.mu.Unlock()
-
-	return nil
-}
-
-func (h *Host) handleResetAll(_ *struct{}) error {
-	h.mu.Lock()
-	h.saveUserKeybindOverrides(map[string]Binding{})
-	h.state.rebuild(h)
-	h.mu.Unlock()
-
-	return nil
-}
-
-// pauseKeybinds / resumeKeybinds hold and release the `suppress_keybinds`
-// effect around a key capture.
-//
-// This replaced raw `ControlSignal("keybind:pause")` — a global lease with no
-// owner, no refcount and no expiry, where a crash between pause and resume
-// left every hotkey dead.
-// As an effect the platform owns the lifetime: per-plugin stack frames, the
-// actual pause only on the empty→held transition, resume only when the LAST
-// holder releases (so an overlapping voice-editor capture isn't stomped —
-// the accepted race of the old boot-time resume is gone), and release in
-// `cleanup_terminated_plugin` if this process dies mid-capture, on every
-// platform. No boot-time reconcile needed anymore for exactly that reason.
-//
-// A capture also bounds its own pause (captureTimeout). Nothing tells this
-// plugin when the Settings tab closes mid-capture, so a capture abandoned
-// that way held every hotkey paused: on macOS until the shell's 30 s
-// auto-resume, on Linux and Windows until this plugin restarted. The bound
-// lives here, with the holder, on every OS; the shell's timer then had no
-// job left (2026-09-25).
-func (h *Host) pauseKeybinds() {
-	h.armCaptureTimeout()
-	h.holdPause()
-}
-
-func (h *Host) resumeKeybinds() {
-	h.stopCaptureTimeout()
-	h.releasePause()
-}
-
-// captureTimeout is how long a capture may hold the pause. A var so tests
-// can shorten it.
-var captureTimeout = 30 * time.Second
-
-func (h *Host) armCaptureTimeout() {
-	h.captureMu.Lock()
-	defer h.captureMu.Unlock()
-	if h.captureTimer != nil {
-		h.captureTimer.Stop()
-	}
-	h.captureTimer = time.AfterFunc(captureTimeout, h.expireCapture)
-}
-
-func (h *Host) stopCaptureTimeout() {
-	h.captureMu.Lock()
-	defer h.captureMu.Unlock()
-	if h.captureTimer != nil {
-		h.captureTimer.Stop()
-		h.captureTimer = nil
-	}
-}
-
-// expireCapture cancels whatever capture is open, as Cancel would.
-func (h *Host) expireCapture() {
-	h.mu.Lock()
-	h.state.RemappingCombo = ""
-	h.state.PendingBind = nil
-	h.mu.Unlock()
-	branchkit.Logf("keyboard", "key capture idle for %s — cancelled, hotkeys resumed", captureTimeout)
-	h.resumeKeybinds()
-}
-
-func (h *Host) holdPauseDefault() {
-	out, err := h.plugin.AssertEffect("suppress_keybinds")
-	if err != nil {
-		branchkit.Logf("keyboard", "suppress_keybinds assert failed: %v", err)
+// warnLegacyOverrides says so when edits saved by this plugin's old Keybinds
+// tab are still here. That tab moved into Settings → Keybinds, and only the
+// platform writes keybind edits now, so this plugin cannot carry them over:
+// the version that could did so on its first start.
+func (h *Host) warnLegacyOverrides() {
+	rec, err := h.plugin.Get(legacyOverridesCollection, "singleton")
+	if err != nil || rec == nil {
 		return
 	}
-	if !out.Enforced {
-		// Capture still proceeds — worst case a hotkey fires mid-capture,
-		// same as the pre-pause world — but say so, loudly enough to find.
-		branchkit.Logf("keyboard", "suppress_keybinds not enforced — captured keys may also trigger commands")
+	var legacy map[string]json.RawMessage
+	if json.Unmarshal(rec.Payload, &legacy) != nil || len(legacy) == 0 {
+		return
 	}
+	branchkit.Logf("keyboard", "%d keybind edit(s) saved by an older version are still in %s and were "+
+		"not carried over — re-create them in Settings → Keybinds", len(legacy), legacyOverridesCollection)
 }
 
-func (h *Host) releasePauseDefault() {
-	if _, _, err := h.plugin.RetractEffect("suppress_keybinds"); err != nil {
-		branchkit.Logf("keyboard", "suppress_keybinds retract failed: %v", err)
-	}
-}
-
-func (h *Host) handleStartCapture(_ *struct{}) (any, error) {
-	h.pauseKeybinds()
-	return OkResponse{OK: true}, nil
-}
-
-func (h *Host) handleStopCapture(_ *struct{}) (any, error) {
-	h.resumeKeybinds()
-	return OkResponse{OK: true}, nil
-}
-
-// --- Settings rendering helpers ---
-
-var corePluginIDs = map[string]bool{"voice": true, "keyboard": true, "wm": true}
-
-func capitalize(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
-func sourceGroupName(src KeybindSource) string {
-	if src.IsUser {
-		return "Custom"
-	}
-	name := capitalize(src.PluginID)
-	if corePluginIDs[src.PluginID] {
-		return name + " (Core)"
-	}
-	return name
-}
-
-func sourceBadgeLabel(src KeybindSource) string {
-	if src.IsUser {
-		return "Custom"
-	}
-	return capitalize(src.PluginID)
-}
-
-func humanizeAction(action string) string {
-	// Actions are exact dotted types ("voice.dictation", "tiling.move_to");
-	// the label is the leaf with underscores opened up.
-	base := action
-	if i := strings.LastIndex(base, "."); i >= 0 {
-		base = base[i+1:]
-	}
-	label := strings.ReplaceAll(base, "_", " ")
-	return capitalize(label)
-}
-
-func findActionForCombo(reg *InternalRegistry, comboStr string) Binding {
-	combo, ok := parseCombo(comboStr)
-	if !ok {
-		return Binding{}
-	}
-	if e, found := reg.resolve(combo); found {
-		return Binding{Action: e.Action, Params: e.Params}
-	}
-	return Binding{}
-}
+// legacyOverridesCollection held the user's keybind edits as one whole-map
+// singleton until 2026-09-30.
+const legacyOverridesCollection = "plugin.keyboard.overrides"
 
 // --- Data loading ---
 
@@ -568,13 +249,7 @@ func main() {
 	loadAndPushKeys(h.plugin) // depends on layout_characters for enrichment
 	loadAndPushModifiers(h.plugin)
 
-	// The platform derives and registers the hotkey table itself; this
-	// plugin carries old saved edits over once, then reads the table to
-	// show it.
-	h.migrateLegacyOverrides()
-	h.mu.Lock()
-	h.state.rebuild(h)
-	h.mu.Unlock()
+	h.warnLegacyOverrides()
 
 	// Subscribe to events (actuator→plugin notifications)
 	h.plugin.On("_platform.collection.updated", func(params json.RawMessage) {
@@ -584,13 +259,8 @@ func main() {
 		if err := json.Unmarshal(params, &payload); err != nil {
 			return
 		}
-		switch payload.Collection {
-		case keyNamesCollection:
+		if payload.Collection == keyNamesCollection {
 			h.refreshKeycodesFromCollection()
-		case bindingsActiveCollection:
-			h.mu.Lock()
-			h.state.rebuild(h)
-			h.mu.Unlock()
 		}
 	})
 
@@ -602,22 +272,8 @@ func main() {
 
 	// Register handlers (actuator→plugin requests)
 	h.plugin.SettingsCSS(keyboardCSS)
-	h.plugin.SettingsTab("keybinds", h.renderKeybindsTab)
 	h.plugin.SettingsTab("keys", h.renderKeysTab)
 
-	branchkit.HandleCommand(h.plugin, "start_remap", h.handleStartRemap)
-	branchkit.HandleTyped(h.plugin, "remap", h.handleRemap)
-	branchkit.HandleCommand(h.plugin, "cancel_remap", h.handleCancelRemap)
-	branchkit.HandleCommand(h.plugin, "reset", h.handleReset)
-	branchkit.HandleCommand(h.plugin, "reset_all", h.handleResetAll)
-	branchkit.HandleTyped(h.plugin, "start_capture", h.handleStartCapture)
-	branchkit.HandleTyped(h.plugin, "stop_capture", h.handleStopCapture)
-	branchkit.HandleCommand(h.plugin, "remap_keydown", h.handleRemapKeydown)
-	branchkit.HandleCommand(h.plugin, "open_bind_picker", h.handleOpenBindPicker)
-	branchkit.HandleCommand(h.plugin, "close_bind_picker", h.handleCloseBindPicker)
-	branchkit.HandleCommand(h.plugin, "choose_bind", h.handleChooseBind)
-	branchkit.HandleCommand(h.plugin, "cancel_bind", h.handleCancelBind)
-	branchkit.HandleCommand(h.plugin, "bind_keydown", h.handleBindKeydown)
 	// Per-action handlers (replaces the old single on_action switch).
 	HandleType(h.plugin, h.handleInputType)
 	HandleKeyByName(h.plugin, h.handleInputKeyByName)

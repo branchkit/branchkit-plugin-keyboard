@@ -30,40 +30,10 @@ type Host struct {
 	// stop. Seams so the hold machinery can be driven without a platform.
 	rawKey        func(code int, direction string)
 	safetyTimeout time.Duration
-
-	// fetchActive reads the hotkey table the platform derived. A field so
-	// handler tests can run without a platform.
-	fetchActive              func() (activeTable, error)
-	fetchContributed         func() ([]contributedBinding, error)
-	fetchBindableCommands    func() ([]bindCandidate, error)
-	loadUserKeybindOverrides func() map[string]Binding
-	saveUserKeybindOverrides func(overrides map[string]Binding)
-	// overridesUnreadable is set when reading the overrides FAILED (not
-	// when there were none). Every remap is load, edit, save the whole map,
-	// and a save makes the store equal to the map, so saving after a failed
-	// read would delete the user's saved edits. Saves refuse while it is
-	// set; the next successful read clears it.
-	overridesUnreadable atomic.Bool
-	parseKeyEvent       func(ev DOMKeyEvent) (ParsedKeyEvent, error)
-
-	// The hotkey pause a key capture holds (pauseKeybinds), as seams so a
-	// test can watch it, and the timer that bounds it (captureTimeout).
-	holdPause    func()
-	releasePause func()
-	captureMu    sync.Mutex
-	captureTimer *time.Timer
 }
 
 func newHost(p *branchkit.Plugin) *Host {
 	h := &Host{plugin: p, state: newPluginState()}
-	h.fetchActive = h.fetchActiveDefault
-	h.fetchContributed = h.fetchContributedDefault
-	h.fetchBindableCommands = h.fetchBindableCommandsDefault
-	h.loadUserKeybindOverrides = h.loadUserKeybindOverridesDefault
-	h.saveUserKeybindOverrides = h.saveUserKeybindOverridesDefault
-	h.parseKeyEvent = h.parseKeyEventDefault
-	h.holdPause = h.holdPauseDefault
-	h.releasePause = h.releasePauseDefault
 	h.rawKey = h.rawKeyDefault
 	h.safetyTimeout = defaultSafetyTimeout
 	return h
