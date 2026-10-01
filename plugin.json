@@ -77,6 +77,7 @@
     },
     "scroll": {
       "label": "Scroll",
+      "consequence": "reversible",
       "fields": [
         { "key": "direction", "label": "Direction", "field_type": "enum", "enum_values": ["up", "down", "left", "right"], "required": true },
         { "key": "unit", "label": "Unit", "field_type": "enum", "enum_values": ["line", "pixel"], "required": false },
@@ -85,6 +86,7 @@
     },
     "move": { "uses": ["native.warp_cursor"],
       "label": "Move Cursor",
+      "consequence": "reversible",
       "fields": [
         { "key": "x", "label": "X", "field_type": "int", "required": true },
         { "key": "y", "label": "Y", "field_type": "int", "required": true }
