@@ -27,6 +27,20 @@ type holdState struct {
 	cancel context.CancelFunc
 	key    keyTarget
 	mods   []string
+	// done closes when the repeat loop has exited (nil for a hold that does
+	// not repeat). Stopping a hold waits on it before sending the release:
+	// cancelling alone let a click already past the loop's select land after
+	// the release, so the key clicked once more after being let go.
+	done chan struct{}
+}
+
+// cancelAndWait stops the hold's repeat loop and waits until it has exited,
+// so nothing it sends can follow what the caller sends next.
+func (s *holdState) cancelAndWait() {
+	s.cancel()
+	if s.done != nil {
+		<-s.done
+	}
 }
 
 func (h *Host) isModifierKey(t keyTarget) bool { return h.modifierNameForKey(t) != "" }
@@ -148,11 +162,15 @@ func (h *Host) startHold(t keyTarget, mods []string, repeat bool) {
 	prev := h.activeHold
 	id := h.holdSeq.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	h.activeHold = &holdState{id: id, cancel: cancel, key: t, mods: mods}
+	var done chan struct{}
+	if repeat {
+		done = make(chan struct{})
+	}
+	h.activeHold = &holdState{id: id, cancel: cancel, key: t, mods: mods, done: done}
 	h.mu.Unlock()
 
 	if prev != nil {
-		prev.cancel()
+		prev.cancelAndWait()
 		h.releaseKeys(prev.key, prev.mods)
 	}
 
@@ -160,7 +178,10 @@ func (h *Host) startHold(t keyTarget, mods []string, repeat bool) {
 	h.pressRawKey(t.code, "press")
 
 	if repeat {
-		go h.runRepeatLoop(ctx, id, t)
+		go func() {
+			defer close(done)
+			h.runRepeatLoop(ctx, id, t)
+		}()
 	}
 }
 
@@ -195,7 +216,7 @@ func (h *Host) stopHold(t keyTarget, mods []string) {
 	h.mu.Unlock()
 
 	if hold != nil {
-		hold.cancel()
+		hold.cancelAndWait()
 	}
 
 	h.pressRawKey(t.code, "release")
