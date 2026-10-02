@@ -279,6 +279,7 @@ func main() {
 	HandleKeyByName(h.plugin, h.handleInputKeyByName)
 	HandleKey(h.plugin, h.handleInputKey)
 	HandleShortcutByName(h.plugin, h.handleInputShortcutByName)
+	HandleNavigate(h.plugin, h.handleInputNavigate)
 	HandleShortcut(h.plugin, h.handleInputShortcut)
 	HandleRawKey(h.plugin, h.handleInputRawKey)
 	HandleClick(h.plugin, h.handleInputClick)

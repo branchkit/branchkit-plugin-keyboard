@@ -48,8 +48,14 @@
       "modes": ["hold", "repeat"],
       "fields": [
         { "key": "name", "label": "Key Name", "placeholder": "s", "field_type": "string", "required": true },
-        { "key": "modifiers", "label": "Modifiers", "placeholder": "cmd", "field_type": "string[]", "required": true },
+        { "key": "modifiers", "label": "Modifiers", "placeholder": "primary", "field_type": "string[]", "required": true },
         { "key": "strategy", "label": "Strategy", "placeholder": "key_event", "field_type": "enum", "enum_values": ["key_event", "text"], "required": false }
+      ]
+    },
+    "navigate": {
+      "label": "Move the Caret",
+      "fields": [
+        { "key": "to", "label": "To", "field_type": "enum", "enum_values": ["document_start", "document_end", "line_start", "line_end"], "required": true }
       ]
     },
     "shortcut": {

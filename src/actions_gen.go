@@ -123,6 +123,26 @@ func HandleMove(p *branchkit.Plugin, fn func(MoveParams, *branchkit.OnActionRequ
 	branchkit.HandleActionTyped(p, "input.move", fn)
 }
 
+// NavigateTo is a generated enum type.
+type NavigateTo string
+
+const (
+	NavigateToDocumentStart NavigateTo = "document_start"
+	NavigateToDocumentEnd   NavigateTo = "document_end"
+	NavigateToLineStart     NavigateTo = "line_start"
+	NavigateToLineEnd       NavigateTo = "line_end"
+)
+
+// NavigateParams is the params shape for action "input.navigate (Move the Caret)".
+type NavigateParams struct {
+	To NavigateTo `json:"to"`
+}
+
+// HandleNavigate registers a typed handler for action "input.navigate (Move the Caret)".
+func HandleNavigate(p *branchkit.Plugin, fn func(NavigateParams, *branchkit.OnActionRequest) (any, error)) {
+	branchkit.HandleActionTyped(p, "input.navigate", fn)
+}
+
 // RawKeyDirection is a generated enum type.
 type RawKeyDirection string
 

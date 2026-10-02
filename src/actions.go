@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/branchkit/plugin-sdk-go"
@@ -136,6 +138,48 @@ func (h *Host) handleInputShortcutByName(p ShortcutByNameParams, req *branchkit.
 	mods := mergeModifiers(p.Modifiers, h.activeModifiers())
 	logErr("input.shortcut_by_name", h.plugin.InputPressKey(branchkit.InputPressKeyRequest{Modifiers: mods, Name: &p.Name}))
 	return nil, nil
+}
+
+// navigateChord is the shortcut this OS uses to move the caret: macOS
+// moves to a document's or line's ends with Command and an arrow, Linux and
+// Windows with Home and End (Control for the document). The same voice
+// command means the same thing everywhere.
+func navigateChord(to NavigateTo, goos string) (name string, modifiers []string, ok bool) {
+	mac := goos == "darwin"
+	switch to {
+	case NavigateToDocumentStart:
+		if mac {
+			return "up", []string{"cmd"}, true
+		}
+		return "home", []string{"ctrl"}, true
+	case NavigateToDocumentEnd:
+		if mac {
+			return "down", []string{"cmd"}, true
+		}
+		return "end", []string{"ctrl"}, true
+	case NavigateToLineStart:
+		if mac {
+			return "left", []string{"cmd"}, true
+		}
+		return "home", nil, true
+	case NavigateToLineEnd:
+		if mac {
+			return "right", []string{"cmd"}, true
+		}
+		return "end", nil, true
+	}
+	return "", nil, false
+}
+
+func (h *Host) handleInputNavigate(p NavigateParams, req *branchkit.OnActionRequest) (any, error) {
+	name, mods, ok := navigateChord(p.To, runtime.GOOS)
+	if !ok {
+		return nil, fmt.Errorf("input.navigate: unknown destination %q", p.To)
+	}
+	if mods == nil {
+		mods = []string{}
+	}
+	return h.handleInputShortcutByName(ShortcutByNameParams{Name: name, Modifiers: mods}, req)
 }
 
 func (h *Host) handleInputShortcut(p ShortcutParams, req *branchkit.OnActionRequest) (any, error) {
