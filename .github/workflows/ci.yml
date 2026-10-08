@@ -7,13 +7,20 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
       - name: gofmt
+        # The source is the same on every OS, and a Windows checkout has
+        # CRLF line endings, which gofmt reports as unformatted.
+        if: runner.os != 'Windows'
         working-directory: src
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: vet
