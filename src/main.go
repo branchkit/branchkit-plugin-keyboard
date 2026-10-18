@@ -252,19 +252,11 @@ func main() {
 	h.warnLegacyOverrides()
 
 	// Subscribe to events (actuator→plugin notifications)
-	h.plugin.On("_platform.collection.updated", func(params json.RawMessage) {
-		var payload struct {
-			Collection string `json:"collection"`
-		}
-		if err := json.Unmarshal(params, &payload); err != nil {
-			return
-		}
-		if payload.Collection == keyNamesCollection {
-			h.refreshKeycodesFromCollection()
-		}
+	h.plugin.Subscribe(keyNamesCollection, func(branchkit.CollectionUpdatedEventParams) {
+		h.refreshKeycodesFromCollection()
 	})
 
-	h.plugin.On("_platform.keyboard.layout_changed", func(params json.RawMessage) {
+	h.plugin.OnKeyboardLayoutChanged(func(branchkit.KeyboardLayoutChangedEventParams) {
 		branchkit.Logf("keyboard", "layout changed — re-pushing layout_characters and keys")
 		h.loadAndPushLayoutCharacters(h.plugin)
 		loadAndPushKeys(h.plugin) // re-enrich with new layout characters
