@@ -264,7 +264,7 @@ func main() {
 
 	// Register handlers (actuator→plugin requests)
 	h.plugin.SettingsCSS(keyboardCSS)
-	h.plugin.SettingsTab("keys", h.renderKeysTab)
+	h.plugin.Page("keys", h.renderKeysTab)
 
 	// Per-action handlers (replaces the old single on_action switch).
 	HandleType(h.plugin, h.handleInputType)

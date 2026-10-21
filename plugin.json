@@ -202,7 +202,7 @@
     ]
   },
   "implements": {
-    "settings_tabs": [{"label": "Keys", "key": "keys"}],
+    "pages": [{"label": "Keys", "key": "keys"}],
     "render_settings": true,
     "on_action": true
   }
