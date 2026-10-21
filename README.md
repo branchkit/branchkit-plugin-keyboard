@@ -17,7 +17,7 @@ BranchKit is pre-launch: the app is not publicly released yet.
 Nothing directly: this plugin declares no phrases of its own. Other plugins'
 commands dispatch its actions; the bundled voice plugin's `press <modifiers>
 <key>`, `undo`, `copy that`, `scroll down` and `go end`, for example, all land
-here. Any command can also be bound to a key in Settings → Keybinds.
+here. Any command can also be bound to a key in BranchKit → Keybinds.
 
 ## Actions
 
@@ -59,11 +59,11 @@ which this plugin reads and enriches; it does not own them.
 current layout.
 
 Global hotkeys are not this plugin's: the platform owns the hotkey table, you
-edit it in Settings → Keybinds, and plugins contribute defaults under
+edit it in BranchKit → Keybinds, and plugins contribute defaults under
 `collection_data["_platform.bindings"]` in their manifest. Hotkeys used to be
 configured here; if edits saved that way are still in
 `plugin.keyboard.overrides`, the plugin says so at start, so they can be
-re-created in Settings → Keybinds.
+re-created in BranchKit → Keybinds.
 
 ## Permissions
 
