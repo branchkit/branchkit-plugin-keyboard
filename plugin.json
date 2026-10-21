@@ -3,6 +3,7 @@
   "id": "keyboard",
   "name": "Keyboard & Mouse",
   "icon": "keyboard",
+  "icon_color": "slate",
   "requires": {
     "privileges": ["input"],
     "capabilities": {
