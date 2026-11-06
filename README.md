@@ -48,7 +48,6 @@ trigger does, or repeats at the system's key-repeat delay and rate.
   plugins' commands can capture `<keys>` and `<modifiers>`.
 - `layout_characters`: what each key types on the active keyboard layout,
   re-read when the layout changes.
-- `plugin.keyboard.overrides`: legacy, read only (see below).
 
 Key names themselves come from the platform's `_platform.key_names` registry,
 which this plugin reads and enriches; it does not own them.
@@ -60,10 +59,7 @@ current layout.
 
 Global hotkeys are not this plugin's: the platform owns the hotkey table, you
 edit it in BranchKit → Keybinds, and plugins contribute defaults under
-`collection_data["_platform.bindings"]` in their manifest. Hotkeys used to be
-configured here; if edits saved that way are still in
-`plugin.keyboard.overrides`, the plugin says so at start, so they can be
-re-created in BranchKit → Keybinds.
+`collection_data["_platform.bindings"]` in their manifest.
 
 ## Permissions
 

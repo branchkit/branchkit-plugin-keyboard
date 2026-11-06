@@ -36,27 +36,6 @@ func (h *Host) renderKeysTab(req *branchkit.RenderSettingsRequest) (string, erro
 	return h.renderKeysSettings(strings.ToLower(req.Search))
 }
 
-// warnLegacyOverrides says so when edits saved by this plugin's old Keybinds
-// tab are still here. That tab moved into Settings → Keybinds, and only the
-// platform writes keybind edits now, so this plugin cannot carry them over:
-// the version that could did so on its first start.
-func (h *Host) warnLegacyOverrides() {
-	rec, err := h.plugin.Get(legacyOverridesCollection, "singleton")
-	if err != nil || rec == nil {
-		return
-	}
-	var legacy map[string]json.RawMessage
-	if json.Unmarshal(rec.Payload, &legacy) != nil || len(legacy) == 0 {
-		return
-	}
-	branchkit.Logf("keyboard", "%d keybind edit(s) saved by an older version are still in %s and were "+
-		"not carried over — re-create them in Settings → Keybinds", len(legacy), legacyOverridesCollection)
-}
-
-// legacyOverridesCollection held the user's keybind edits as one whole-map
-// singleton until 2026-09-30.
-const legacyOverridesCollection = "plugin.keyboard.overrides"
-
 // --- Data loading ---
 
 // keyNamesCollection is the platform's key-name registry. This plugin used to
@@ -248,8 +227,6 @@ func main() {
 	h.loadAndPushLayoutCharacters(h.plugin)
 	loadAndPushKeys(h.plugin) // depends on layout_characters for enrichment
 	loadAndPushModifiers(h.plugin)
-
-	h.warnLegacyOverrides()
 
 	// Subscribe to events (actuator→plugin notifications)
 	h.plugin.Subscribe(keyNamesCollection, func(branchkit.CollectionUpdatedEventParams) {

@@ -121,13 +121,6 @@
   },
   "provides": {
     "collections": {
-      "plugin.keyboard.overrides": {
-        "preset": "data",
-        "cardinality": "singleton",
-        "id_strategy": { "type": "singleton" },
-        "writers": "introducer_only",
-        "description": "Legacy store of the user's keybind edits from before Settings → Keybinds; read only to say whether any were left behind."
-      },
       "layout_characters": {
         "preset": "data",
         "merge": "authoritative",
