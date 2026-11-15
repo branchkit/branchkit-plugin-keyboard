@@ -106,6 +106,8 @@ func buildLayoutCharacters(keyNames map[string]uint16, layoutMappings map[string
 // loadAndPushLayoutCharacters fetches the keyboard layout from the actuator,
 // joins with keycodes, caches locally, and pushes the layout_characters store.
 func (h *Host) loadAndPushLayoutCharacters(p *branchkit.Plugin) {
+	h.layoutMu.Lock()
+	defer h.layoutMu.Unlock()
 	type layoutResp struct {
 		LayoutID   string            `json:"layout_id"`
 		LayoutName string            `json:"layout_name"`
@@ -223,9 +225,12 @@ func main() {
 	// below, which enrich against them.
 	h.refreshKeycodesFromCollection()
 
-	// Push initial data to actuator stores
-	h.loadAndPushLayoutCharacters(h.plugin)
-	loadAndPushKeys(h.plugin) // depends on layout_characters for enrichment
+	// Push initial data to the platform's stores. The layout is read after
+	// Run(), below: on macOS native.keyboard_layout waits for the main
+	// thread, which is busy until the app finishes launching, so asking for
+	// it here held this plugin's readiness (and the app's "all plugins
+	// ready") for up to the 10 s timeout.
+	loadAndPushKeys(h.plugin)
 	loadAndPushModifiers(h.plugin)
 
 	// Subscribe to events (actuator→plugin notifications)
@@ -236,7 +241,6 @@ func main() {
 	h.plugin.OnKeyboardLayoutChanged(func(branchkit.KeyboardLayoutChangedEventParams) {
 		branchkit.Logf("keyboard", "layout changed — re-pushing layout_characters and keys")
 		h.loadAndPushLayoutCharacters(h.plugin)
-		loadAndPushKeys(h.plugin) // re-enrich with new layout characters
 	})
 
 	// Register handlers (actuator→plugin requests)
@@ -257,6 +261,10 @@ func main() {
 	HandleMouseDown(h.plugin, h.handleInputMouseDown)
 	HandleMouseUp(h.plugin, h.handleInputMouseUp)
 	HandleClipboard(h.plugin, h.handleInputClipboard)
+
+	// The layout, off the startup path (see above). Call works before and
+	// after Run; a layout change that lands meanwhile pushes it again.
+	go h.loadAndPushLayoutCharacters(h.plugin)
 
 	// Run the message loop (blocks until stdin closes or SIGTERM)
 	h.plugin.Run()

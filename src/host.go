@@ -17,6 +17,10 @@ type Host struct {
 
 	mu    sync.Mutex
 	state *PluginState
+	// layoutMu serialises layout reads and pushes: the first runs on its own
+	// goroutine at startup, and a layout change may arrive meanwhile; the
+	// later read must be the one that lands.
+	layoutMu sync.Mutex
 
 	// Hold-to-repeat: the one active hold, its sequence counter, the system
 	// repeat timings, and modifiers held via hold mode (injected into key
