@@ -36,9 +36,10 @@ here. Any command can also be bound to a key in BranchKit → Keybinds.
 | `input.move` | Move the pointer to a screen position |
 | `input.clipboard` | `copy`, `paste`, or `set` the clipboard to given text |
 
-`key`, `key_by_name`, `shortcut` and `shortcut_by_name` also have `hold` and
-`repeat` modes: bound to a held trigger, the key stays down for as long as the
-trigger does, or repeats at the system's key-repeat delay and rate.
+`key`, `key_by_name`, `shortcut`, `shortcut_by_name` and `raw_key` also have
+`hold` and `repeat` modes: bound to a held trigger, the key stays down for as
+long as the trigger does, or repeats at the system's key-repeat delay and rate.
+Under a held trigger `raw_key` ignores its own `direction`.
 
 ## Collections
 

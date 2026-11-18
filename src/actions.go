@@ -200,6 +200,22 @@ func (h *Host) handleInputShortcut(p ShortcutParams, req *branchkit.OnActionRequ
 }
 
 func (h *Host) handleInputRawKey(p RawKeyParams, req *branchkit.OnActionRequest) (any, error) {
+	// Bound to a held or repeating trigger, the trigger's edges decide the
+	// direction: down on start, up on stop, as for input.key. The params'
+	// own direction is for a one-shot call; applied to both edges it sent a
+	// click on press and another on release, or a second press and never a
+	// release.
+	if phase := holdPhase(req); phase != "" {
+		switch phase {
+		case "start":
+			h.startHold(keyTarget{code: p.Code}, nil, false)
+		case "repeat":
+			h.startHold(keyTarget{code: p.Code}, nil, true)
+		default:
+			h.stopHold(keyTarget{code: p.Code}, nil)
+		}
+		return nil, nil
+	}
 	direction := "click"
 	switch {
 	case p.Direction != nil:
